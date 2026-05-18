@@ -191,7 +191,7 @@ export function AiAgentPanel({
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? { ...m, content: `⚠️ Gagal mendapat respons dari Gemini.\n\n**Detail Error:**\n\`${errMsg}\`\n\nPastikan VITE_GEMINI_API_KEY sudah benar di Vercel/lokal.` }
+            ? { ...m, content: `⚠️ Gagal mendapat respons dari Gemini.\n\n**Detail Error:**\n\`${errMsg}\`` }
             : m
         )
       );
