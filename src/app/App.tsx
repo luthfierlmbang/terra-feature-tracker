@@ -78,7 +78,15 @@ function sortFeatures(features: Feature[]) {
     if (ad !== bd) return ad - bd;
     return new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime();
   });
+}function getEnvStatus(val: any): string {
+  if (val === undefined) return "UNDEFINED (missing)";
+  if (val === null) return "NULL";
+  if (typeof val !== "string") return `TYPE: ${typeof val} (value: ${String(val)})`;
+  if (val.trim() === "") return "EMPTY STRING (len: 0)";
+  if (val === "your_firebase_api_key_here" || val.includes("_here")) return "PLACEHOLDER (not changed)";
+  return `LOADED ("${val.substring(0, 5)}..." len: ${val.length})`;
 }
+
 
 function getYear(feature: Feature): string | null {
   const iso = feature.releaseDate ?? feature.targetReleaseDate;
@@ -354,11 +362,16 @@ export default function App() {
               <li>Lakukan <strong>Redeploy</strong> pada deployment terbaru.</li>
             </ol>
             <div className="mt-4 border-t pt-3 border-gray-200">
-              <p className="text-xs font-semibold text-[#171717] mb-1">Diagnostic Info (Vercel Build):</p>
-              <pre className="text-[10px] text-gray-500 overflow-x-auto whitespace-pre-wrap break-all bg-gray-100 p-2 rounded">
-                API_KEY: {typeof import.meta.env.VITE_FIREBASE_API_KEY === 'string' ? `"${import.meta.env.VITE_FIREBASE_API_KEY.substring(0, 5)}..." (len: ${import.meta.env.VITE_FIREBASE_API_KEY.length})` : String(import.meta.env.VITE_FIREBASE_API_KEY)}
-                {"\n"}
-                IS_CONFIGURED: {String(isFirebaseConfigured)}
+              <p className="text-xs font-semibold text-[#171717] mb-1">Diagnostic Info (All Variables):</p>
+              <pre className="text-[10px] text-gray-500 overflow-x-auto text-left bg-gray-100 p-2.5 rounded font-mono space-y-1">
+                <div>API_KEY: {getEnvStatus(import.meta.env.VITE_FIREBASE_API_KEY)}</div>
+                <div>AUTH_DOMAIN: {getEnvStatus(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN)}</div>
+                <div>PROJECT_ID: {getEnvStatus(import.meta.env.VITE_FIREBASE_PROJECT_ID)}</div>
+                <div>STORAGE_BUCKET: {getEnvStatus(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET)}</div>
+                <div>MESSAGING_SENDER_ID: {getEnvStatus(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID)}</div>
+                <div>APP_ID: {getEnvStatus(import.meta.env.VITE_FIREBASE_APP_ID)}</div>
+                <div>GEMINI_KEY: {getEnvStatus(import.meta.env.VITE_GEMINI_API_KEY)}</div>
+                <div className="mt-2 pt-1 border-t border-gray-200 text-[#171717] font-semibold">IS_CONFIGURED: {String(isFirebaseConfigured)}</div>
               </pre>
             </div>
           </div>
