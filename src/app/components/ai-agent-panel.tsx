@@ -218,10 +218,13 @@ export function AiAgentPanel({
   return (
     <div className="flex h-full flex-col border-l border-[#e5e5e5] bg-white animate-fade-in" style={{ minWidth: 360 }}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#e5e5e5] px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-[#027479] to-[#02878d]">
-            <Bot size={14} strokeWidth={2} color="white" />
+      <div className="flex items-center justify-between border-b border-[#e5e5e5] px-4 py-3 bg-[#fafafa]">
+        <div className="flex items-center gap-2.5">
+          <div 
+            className="flex size-8 items-center justify-center rounded-lg bg-[#02878d]"
+            style={{ boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.18), inset 0 -2px 0 0 rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.05)" }}
+          >
+            <Bot size={16} strokeWidth={2} color="white" />
           </div>
           <div>
             <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 13, color: "#171717" }}>
@@ -241,18 +244,19 @@ export function AiAgentPanel({
       </div>
 
       {/* Mode Selector */}
-      <div className="relative border-b border-[#e5e5e5] px-3 py-2">
+      <div className="relative border-b border-[#e5e5e5] px-4 py-3">
         <button
           onClick={() => setShowModeMenu(!showModeMenu)}
-          className="flex w-full items-center justify-between rounded-lg border border-[#e5e5e5] bg-[#fafafa] px-3 py-2 text-left hover:bg-[#f5f5f5] transition-colors"
+          className="flex h-9 w-full items-center justify-between rounded-lg border border-[#d4d4d4] bg-white px-3 outline-none transition-all hover:bg-[#fafafa] focus:border-[#02878d] focus:ring-4 focus:ring-[#02878d]/10"
+          style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
         >
           <div className="flex items-center gap-2">
-            <span className="text-[#027479]">{currentMode.icon}</span>
-            <span style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 12, color: "#171717" }}>
+            <span className="text-[#02878d]">{currentMode.icon}</span>
+            <span style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 13, color: "#171717" }}>
               {currentMode.label}
             </span>
           </div>
-          <ChevronDown size={14} strokeWidth={1.5} color="#737373" className={showModeMenu ? "rotate-180" : ""} style={{ transition: "transform 0.2s" }} />
+          <ChevronDown size={16} strokeWidth={1.5} color="#a3a3a3" className={showModeMenu ? "rotate-180" : ""} style={{ transition: "transform 0.2s" }} />
         </button>
 
         {showModeMenu && (
@@ -263,8 +267,8 @@ export function AiAgentPanel({
                 onClick={() => { setMode(m.key); setShowModeMenu(false); }}
                 className={`flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-[#f5f5f5] ${mode === m.key ? "bg-[#f0fafb]" : ""}`}
               >
-                <span className={mode === m.key ? "text-[#027479]" : "text-[#737373]"}>{m.icon}</span>
-                <span style={{ fontFamily: "Inter, sans-serif", fontWeight: mode === m.key ? 600 : 400, fontSize: 12, color: mode === m.key ? "#027479" : "#404040" }}>
+                <span className={mode === m.key ? "text-[#02878d]" : "text-[#737373]"}>{m.icon}</span>
+                <span style={{ fontFamily: "Inter, sans-serif", fontWeight: mode === m.key ? 500 : 400, fontSize: 13, color: mode === m.key ? "#02878d" : "#404040" }}>
                   {m.label}
                 </span>
               </button>
@@ -278,28 +282,28 @@ export function AiAgentPanel({
         {messages.map((msg) => (
           <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
             {msg.role === "assistant" && (
-              <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#027479] to-[#02878d] mt-0.5">
-                <Bot size={12} strokeWidth={2} color="white" />
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#02878d] mt-0.5 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.18),inset_0_-2px_0_0_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.05)]">
+                <Bot size={14} strokeWidth={2} color="white" />
               </div>
             )}
             <div
-              className={`max-w-[85%] rounded-2xl px-3 py-2.5 ${
+              className={`max-w-[85%] rounded-xl px-3 py-2.5 ${
                 msg.role === "user"
-                  ? "bg-[#027479] text-white rounded-tr-sm"
-                  : "bg-[#f5f5f5] text-[#171717] rounded-tl-sm"
+                  ? "bg-[#02878d] text-white rounded-tr-sm shadow-[inset_0_0_0_1px_rgba(0,0,0,0.18),0_1px_2px_rgba(0,0,0,0.05)]"
+                  : "bg-white border border-[#d4d4d4] text-[#171717] rounded-tl-sm shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
               }`}
             >
               {msg.role === "user" ? (
-                <p className="text-xs leading-relaxed" style={{ fontFamily: "Inter, sans-serif" }}>
+                <p className="text-sm leading-relaxed" style={{ fontFamily: "Inter, sans-serif" }}>
                   {msg.content}
                 </p>
               ) : msg.content ? (
                 <MarkdownText text={msg.content} />
               ) : (
                 <div className="flex gap-1 items-center py-1">
-                  <span className="size-1.5 rounded-full bg-[#027479] animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="size-1.5 rounded-full bg-[#027479] animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="size-1.5 rounded-full bg-[#027479] animate-bounce" style={{ animationDelay: "300ms" }} />
+                  <span className="size-1.5 rounded-full bg-[#02878d] animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="size-1.5 rounded-full bg-[#02878d] animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="size-1.5 rounded-full bg-[#02878d] animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
               )}
             </div>
@@ -308,8 +312,11 @@ export function AiAgentPanel({
       </div>
 
       {/* Input */}
-      <div className="border-t border-[#e5e5e5] p-3">
-        <div className="flex items-end gap-2 rounded-xl border border-[#e5e5e5] bg-[#fafafa] px-3 py-2 focus-within:border-[#027479] focus-within:ring-2 focus-within:ring-[#027479]/10 transition-all">
+      <div className="border-t border-[#e5e5e5] bg-[#fafafa] p-4">
+        <div 
+          className="flex items-end gap-2 rounded-lg border border-[#d4d4d4] bg-white px-3 py-2 focus-within:border-[#02878d] focus-within:ring-4 focus-within:ring-[#02878d]/10 transition-all"
+          style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
+        >
           <textarea
             ref={inputRef}
             value={input}
@@ -318,18 +325,21 @@ export function AiAgentPanel({
             placeholder={currentMode.placeholder}
             rows={1}
             disabled={isLoading}
-            className="flex-1 resize-none bg-transparent text-xs text-[#171717] placeholder:text-[#a3a3a3] focus:outline-none disabled:opacity-50"
-            style={{ fontFamily: "Inter, sans-serif", maxHeight: 80, lineHeight: "18px" }}
+            className="flex-1 resize-none bg-transparent text-sm text-[#171717] placeholder:text-[#737373] focus:outline-none disabled:opacity-50 py-1"
+            style={{ fontFamily: "Inter, sans-serif", maxHeight: 120, lineHeight: "20px" }}
           />
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim()}
-            className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#027479] text-white transition-all hover:bg-[#015c61] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[#02878d] text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.18), inset 0 -2px 0 0 rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.05)"
+            }}
           >
             {isLoading ? (
-              <Loader2 size={14} strokeWidth={2} className="animate-spin" />
+              <Loader2 size={16} strokeWidth={2} className="animate-spin" />
             ) : (
-              <Send size={14} strokeWidth={2} />
+              <Send size={14} strokeWidth={2.5} className="ml-0.5" />
             )}
           </button>
         </div>
