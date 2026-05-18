@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Bot,
   Send,
@@ -136,8 +136,8 @@ export function AiAgentPanel({
     {
       id: "welcome",
       role: "assistant",
-      content:
-        `Halo! Saya **Tepat AI**, asisten cerdas untuk Feature Tracker Anda.\n\nSaya dapat membantu Anda:\n- **Q&A** — Tanya tentang data fitur\n- **Draft Helper** — Bantu tulis deskripsi/impact\n- **Status Report** — Generate laporan\n- **Summarize** — Ringkasan eksekutif\n\nSaat ini ada **${features.length} fitur** yang bisa saya analisa. Apa yang ingin Anda ketahui?`,
+      // Content will be updated reactively via useEffect below
+      content: "...",
       timestamp: new Date(),
     },
   ]);
@@ -147,6 +147,18 @@ export function AiAgentPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const currentMode = MODES.find((m) => m.key === mode)!;
+
+  // ── Reactively update the welcome message whenever features data changes ──
+  useEffect(() => {
+    const featureCount = features.length;
+    const welcomeContent = featureCount > 0
+      ? `Halo! Saya **Tepat AI**, asisten cerdas untuk Feature Tracker Anda.\n\nSaya dapat membantu Anda:\n- **Q&A** — Tanya tentang data fitur\n- **Draft Helper** — Bantu tulis deskripsi/impact\n- **Status Report** — Generate laporan\n- **Summarize** — Ringkasan eksekutif\n\nSaat ini ada **${featureCount} fitur** yang sudah saya baca dari dashboard. Apa yang ingin Anda ketahui?`
+      : `Halo! Saya **Tepat AI**, asisten cerdas untuk Feature Tracker Anda.\n\nSedang memuat data dari dashboard...`;
+
+    setMessages((prev) =>
+      prev.map((m) => m.id === "welcome" ? { ...m, content: welcomeContent } : m)
+    );
+  }, [features]);
 
   useEffect(() => {
     if (scrollRef.current) {
