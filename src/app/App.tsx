@@ -566,7 +566,7 @@ export default function App() {
         {/* AI Agent Side Panel */}
         {showAiPanel && activeNav === "dashboard" && !activeForm && !viewingFeature && (
           <div className="flex h-full w-[380px] shrink-0 overflow-hidden rounded-xl border border-[#e5e5e5]" style={{ boxShadow: "0 1px 1px rgba(0,0,0,0.05)" }}>
-            <AiAgentPanel features={activeFeatures} onClose={() => setShowAiPanel(false)} />
+            <AiAgentPanel features={activeFeatures} types={types} onClose={() => setShowAiPanel(false)} />
           </div>
         )}
       </div>

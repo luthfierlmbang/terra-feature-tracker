@@ -124,9 +124,11 @@ function MarkdownText({ text }: { text: string }) {
 
 export function AiAgentPanel({
   features,
+  types,
   onClose,
 }: {
   features: Feature[];
+  types?: any;
   onClose: () => void;
 }) {
   const [mode, setMode] = useState<AgentMode>("qa");
@@ -177,7 +179,7 @@ export function AiAgentPanel({
     setIsLoading(true);
 
     try {
-      const stream = streamGemini(input.trim(), features, mode, messages.slice(-10));
+      const stream = streamGemini(input.trim(), features, types, mode, messages.slice(-10));
       let fullText = "";
 
       for await (const chunk of stream) {

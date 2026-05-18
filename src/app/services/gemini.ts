@@ -5,6 +5,7 @@
  */
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { Feature } from "../data/features";
+import type { TypesState } from "../components/customize-types";
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
 
@@ -22,7 +23,7 @@ export type ChatMessage = {
 
 // ─── Context Builder ──────────────────────────────────────────────────────────
 
-function buildFeatureContext(features: Feature[]): string {
+function buildFeatureContext(features: Feature[], types?: TypesState): string {
   if (!features.length) return "No features found in the tracker.";
 
   const summary = features.map((f) => ({
@@ -33,6 +34,10 @@ function buildFeatureContext(features: Feature[]): string {
     designStatus: f.designStatus,
     actionNeeded: f.actionNeeded,
     poPic: f.poPic,
+    designerPic: f.designerPic || "—",
+    researcherPic: f.researcherPic || "—",
+    figmaLink: f.figmaLink || "—",
+    targetReleaseDate: f.targetReleaseDate || "—",
     description: f.description?.replace(/<[^>]+>/g, "").slice(0, 200) || "—",
   }));
 
@@ -47,9 +52,18 @@ ${JSON.stringify(summary, null, 2)}
 ==============================
 
 Context details:
+${types ? `
+- Available Squads: ${types.squad?.join(", ")}
+- Available Modules: ${types.module?.join(", ")}
+- Feature Status options: ${types.featureStatus?.join(", ")}
+- Design Status options: ${types.designStatus?.join(", ")}
+- Action Needed options: ${types.action?.join(", ")}
+- Design Source options: ${types.designSource?.join(", ")}
+` : `
 - Feature Status options: On Progress, Released, Backlog, On Hold
 - Design Status options: Ready to Dev, Need Review, On Progress, No Design Yet
 - Action Needed options: Need Design, Need Figma Link, Need Design Review, Need Redesign, No Action
+`}
 
 Rules:
 1. Always base your answers ONLY on the data provided above.
@@ -101,10 +115,11 @@ function buildChatHistory(chatHistory: ChatMessage[]) {
 export async function askGemini(
   userMessage: string,
   features: Feature[],
+  types: TypesState | undefined,
   mode: AgentMode = "qa",
   chatHistory: ChatMessage[] = []
 ): Promise<string> {
-  const context = buildFeatureContext(features);
+  const context = buildFeatureContext(features, types);
   const modeInstructions = MODE_SYSTEM_PROMPTS[mode];
   const systemInstruction = `${context}\n\nCurrent mode: ${mode}. ${modeInstructions}`;
 
@@ -127,10 +142,11 @@ export async function askGemini(
 export async function* streamGemini(
   userMessage: string,
   features: Feature[],
+  types: TypesState | undefined,
   mode: AgentMode = "qa",
   chatHistory: ChatMessage[] = []
 ): AsyncGenerator<string> {
-  const context = buildFeatureContext(features);
+  const context = buildFeatureContext(features, types);
   const modeInstructions = MODE_SYSTEM_PROMPTS[mode];
   const systemInstruction = `${context}\n\nCurrent mode: ${mode}. ${modeInstructions}`;
 
