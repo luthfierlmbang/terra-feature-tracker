@@ -168,7 +168,25 @@ export default function App() {
       setSquadOwners(so);
       setModuleSquads(ms);
     });
-    const unsubUsers = subscribeToUsers(setUsers);
+    const unsubUsers = subscribeToUsers((loadedUsers) => {
+      setUsers(loadedUsers);
+      
+      // Auto-sync: If the logged-in user profile is not in the Firestore users collection yet,
+      // save their basic profile automatically so they show up in the User Management list.
+      if (firebaseUser) {
+        const email = firebaseUser.email;
+        const exists = loadedUsers.some((u) => u.email === email);
+        if (!exists && email) {
+          const defaultName = firebaseUser.displayName || email.split("@")[0].split(/[._-]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+          saveUser({
+            id: firebaseUser.uid,
+            name: defaultName,
+            email: email,
+            password: "admin1234", // Seed default password for the admin account
+          }).catch(err => console.error("Auto-syncing current user to Firestore failed:", err));
+        }
+      }
+    });
 
     // Mark db as loaded after first subscription response
     const timer = setTimeout(() => setIsDbLoaded(true), 800);

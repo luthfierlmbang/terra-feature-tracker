@@ -216,6 +216,22 @@ export async function migrateFromLocalStorage(force = false): Promise<{
       });
     }
 
+    // Migrate users from localStorage to Firestore
+    if (Array.isArray(data.users)) {
+      for (const u of data.users) {
+        if (u?.id && u?.email) {
+          batch.set(doc(usersCol(), u.id), {
+            id: u.id,
+            name: u.name || u.email.split("@")[0],
+            email: u.email,
+            password: u.password || ""
+          });
+        }
+      }
+    }
+
+    await batch.commit();
+
     localStorage.setItem(MIGRATED_KEY, "true");
     return { migrated: true, count };
   } catch (e) {
