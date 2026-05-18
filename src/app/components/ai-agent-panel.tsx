@@ -230,9 +230,6 @@ export function AiAgentPanel({
             <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 13, color: "#171717" }}>
               Tepat AI
             </p>
-            <p style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: "#737373" }}>
-              Powered by Gemini
-            </p>
           </div>
         </div>
         <button
