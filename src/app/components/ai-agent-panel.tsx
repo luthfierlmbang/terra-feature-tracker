@@ -188,10 +188,16 @@ export function AiAgentPanel({
       }
     } catch (err: any) {
       const errMsg = err?.message || String(err);
+      let friendlyMessage = `⚠️ Gagal mendapat respons dari Gemini.\n\n**Detail Error:**\n\`${errMsg}\``;
+
+      if (errMsg.toLowerCase().includes("quota") || errMsg.includes("429")) {
+        friendlyMessage = `⚠️ **Batas Kuota Gemini Tercapai (Quota Exceeded)**\n\nPermintaan tidak dapat diproses karena kuota API Gemini Anda sedang dibatasi oleh Google (Error 429).\n\n**Cara Cepat Mengatasinya:**\n1. **Buat API Key Baru (Gratis & Bersih):** Buka [Google AI Studio](https://aistudio.google.com/apikey) → Klik **"Create API Key"** → Pilih opsi **"Create API key in a new project"** (jangan gunakan proyek lama). Salin key baru tersebut dan update di Vercel.\n2. **Tunggu Beberapa Saat:** Jika Anda menggunakan Free Tier aktif, silakan tunggu sekitar 1 menit sebelum mengirim pesan baru.`;
+      }
+
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? { ...m, content: `⚠️ Gagal mendapat respons dari Gemini.\n\n**Detail Error:**\n\`${errMsg}\`` }
+            ? { ...m, content: friendlyMessage }
             : m
         )
       );
