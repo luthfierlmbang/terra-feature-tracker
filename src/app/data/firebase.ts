@@ -17,14 +17,26 @@ const isFirebaseConfigured = Boolean(
 );
 
 let app;
+let secondaryApp;
 let db: any = null;
 let auth: any = null;
+let secondaryAuth: any = null;
 
 if (isFirebaseConfigured) {
   try {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
     db = getFirestore(app);
     auth = getAuth(app);
+
+    // Initialize secondary app for creating users without logging out
+    try {
+      secondaryApp = initializeApp(firebaseConfig, "Secondary");
+      secondaryAuth = getAuth(secondaryApp);
+    } catch (e) {
+      const apps = getApps();
+      secondaryApp = apps.find(a => a.name === "Secondary");
+      secondaryAuth = getAuth(secondaryApp!);
+    }
   } catch (err) {
     console.error("Firebase initialization failed:", err);
   }
@@ -32,4 +44,4 @@ if (isFirebaseConfigured) {
   console.warn("⚠️ Firebase credentials are not configured. Please check your Vercel Environment Variables or .env file.");
 }
 
-export { db, auth, isFirebaseConfigured };
+export { db, auth, secondaryAuth, isFirebaseConfigured };

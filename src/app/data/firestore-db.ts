@@ -32,7 +32,7 @@ export type UserAccount = {
   id: string;
   name: string;
   email: string;
-  // Note: passwords are managed by Firebase Auth — not stored in Firestore
+  password?: string;
 };
 
 // ─── Initial Values ───────────────────────────────────────────────────────────

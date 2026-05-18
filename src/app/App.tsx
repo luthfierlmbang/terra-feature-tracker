@@ -560,7 +560,7 @@ export default function App() {
 
                 {activeNav === "settings" && (
                   <div className="animate-fade-in h-full">
-                    <SettingsPage users={users} onChange={setUsers} />
+                    <SettingsPage users={users} />
                   </div>
                 )}
               </>
