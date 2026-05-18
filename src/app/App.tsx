@@ -272,41 +272,45 @@ export default function App() {
   }
 
   function handleRenameType(key: TypeKey, oldVal: string, newVal: string) {
-    setTypes((prev) => ({
-      ...prev,
-      [key]: prev[key].map((v) => (v === oldVal ? newVal : v)),
-    }));
+    const newTypes = {
+      ...types,
+      [key]: types[key].map((v) => (v === oldVal ? newVal : v)),
+    };
+    setTypes(newTypes);
+
+    let newSquadOwners = squadOwners;
+    let newModuleSquads = moduleSquads;
 
     if (key === "squad") {
-      setSquadOwners((prev) => {
-        const next = { ...prev };
-        if (oldVal in next) {
-          next[newVal] = next[oldVal];
-          delete next[oldVal];
-        }
-        return next;
-      });
+      newSquadOwners = { ...squadOwners };
+      if (oldVal in newSquadOwners) {
+        newSquadOwners[newVal] = newSquadOwners[oldVal];
+        delete newSquadOwners[oldVal];
+      }
+      setSquadOwners(newSquadOwners);
+
       // Also update any module that was linked to this squad
-      setModuleSquads((prev) => {
-        const next = { ...prev };
-        for (const [mod, sq] of Object.entries(next)) {
-          if (sq === oldVal) {
-            next[mod] = newVal;
-          }
+      newModuleSquads = { ...moduleSquads };
+      for (const [mod, sq] of Object.entries(newModuleSquads)) {
+        if (sq === oldVal) {
+          newModuleSquads[mod] = newVal;
         }
-        return next;
-      });
+      }
+      setModuleSquads(newModuleSquads);
     } else if (key === "module") {
-      setModuleSquads((prev) => {
-        const next = { ...prev };
-        if (oldVal in next) {
-          next[newVal] = next[oldVal];
-          delete next[oldVal];
-        }
-        return next;
-      });
+      newModuleSquads = { ...moduleSquads };
+      if (oldVal in newModuleSquads) {
+        newModuleSquads[newVal] = newModuleSquads[oldVal];
+        delete newModuleSquads[oldVal];
+      }
+      setModuleSquads(newModuleSquads);
     }
 
+    // Persist config to Firestore
+    saveConfig({ types: newTypes, squadOwners: newSquadOwners, moduleSquads: newModuleSquads })
+      .catch((err) => console.error("Failed to save config after rename:", err));
+
+    // Also update affected features in Firestore
     setFeatures((prev) =>
       prev.map((f) => {
         let updated = false;
@@ -317,41 +321,50 @@ export default function App() {
         else if (key === "designStatus" && f.designStatus === oldVal) { changes.designStatus = newVal as any; updated = true; }
         else if (key === "designSource" && f.designSource === oldVal) { changes.designSource = newVal as any; updated = true; }
         else if (key === "action" && f.actionNeeded === oldVal) { changes.actionNeeded = newVal as any; updated = true; }
-        return updated ? { ...f, ...changes } : f;
+        if (updated) {
+          const updatedFeature = { ...f, ...changes };
+          saveFeature(updatedFeature).catch((err) => console.error("Failed to update feature after rename:", err));
+          return updatedFeature;
+        }
+        return f;
       })
     );
   }
 
   function handleDeleteType(key: TypeKey, val: string) {
-    setTypes((prev) => ({
-      ...prev,
-      [key]: prev[key].filter((v) => v !== val),
-    }));
+    const newTypes = {
+      ...types,
+      [key]: types[key].filter((v) => v !== val),
+    };
+    setTypes(newTypes);
+
+    let newSquadOwners = squadOwners;
+    let newModuleSquads = moduleSquads;
 
     if (key === "squad") {
-      setSquadOwners((prev) => {
-        const next = { ...prev };
-        delete next[val];
-        return next;
-      });
+      newSquadOwners = { ...squadOwners };
+      delete newSquadOwners[val];
+      setSquadOwners(newSquadOwners);
+
       // Unlink the squad from any modules that used it
-      setModuleSquads((prev) => {
-        const next = { ...prev };
-        for (const [mod, sq] of Object.entries(next)) {
-          if (sq === val) {
-            delete next[mod];
-          }
+      newModuleSquads = { ...moduleSquads };
+      for (const [mod, sq] of Object.entries(newModuleSquads)) {
+        if (sq === val) {
+          delete newModuleSquads[mod];
         }
-        return next;
-      });
+      }
+      setModuleSquads(newModuleSquads);
     } else if (key === "module") {
-      setModuleSquads((prev) => {
-        const next = { ...prev };
-        delete next[val];
-        return next;
-      });
+      newModuleSquads = { ...moduleSquads };
+      delete newModuleSquads[val];
+      setModuleSquads(newModuleSquads);
     }
 
+    // Persist config to Firestore
+    saveConfig({ types: newTypes, squadOwners: newSquadOwners, moduleSquads: newModuleSquads })
+      .catch((err) => console.error("Failed to save config after delete:", err));
+
+    // Also update affected features in Firestore
     setFeatures((prev) =>
       prev.map((f) => {
         const changes: Partial<Feature> = {};
@@ -362,17 +375,28 @@ export default function App() {
         else if (key === "designStatus" && f.designStatus === val) { changes.designStatus = "No Design Yet"; updated = true; }
         else if (key === "designSource" && f.designSource === val) { changes.designSource = "Not Available"; updated = true; }
         else if (key === "action" && f.actionNeeded === val) { changes.actionNeeded = "No Action"; updated = true; }
-        return updated ? { ...f, ...changes } : f;
+        if (updated) {
+          const updatedFeature = { ...f, ...changes };
+          saveFeature(updatedFeature).catch((err) => console.error("Failed to update feature after type delete:", err));
+          return updatedFeature;
+        }
+        return f;
       })
     );
   }
 
   function handleSquadOwnerChange(squad: string, owner: string) {
-    setSquadOwners((prev) => ({ ...prev, [squad]: owner }));
+    const newSquadOwners = { ...squadOwners, [squad]: owner };
+    setSquadOwners(newSquadOwners);
+    saveConfig({ types, squadOwners: newSquadOwners, moduleSquads })
+      .catch((err) => console.error("Failed to save squad owner:", err));
   }
 
   function handleModuleSquadChange(moduleName: string, squad: string) {
-    setModuleSquads((prev) => ({ ...prev, [moduleName]: squad }));
+    const newModuleSquads = { ...moduleSquads, [moduleName]: squad };
+    setModuleSquads(newModuleSquads);
+    saveConfig({ types, squadOwners, moduleSquads: newModuleSquads })
+      .catch((err) => console.error("Failed to save module squad:", err));
   }
 
   const hasActiveFilters =
@@ -565,7 +589,11 @@ export default function App() {
                   <div className="px-10 py-8 animate-fade-in h-full">
                     <CustomizeTypes
                       types={types}
-                      onChange={setTypes}
+                      onChange={(newTypes) => {
+                        setTypes(newTypes);
+                        saveConfig({ types: newTypes, squadOwners, moduleSquads })
+                          .catch((err) => console.error("Failed to save config:", err));
+                      }}
                       onRename={handleRenameType}
                       onDelete={handleDeleteType}
                       squadOwners={squadOwners}
