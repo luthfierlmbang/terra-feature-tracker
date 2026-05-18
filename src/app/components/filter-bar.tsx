@@ -17,12 +17,12 @@ export const EMPTY_FILTERS: FilterState = {
 function MiniSelect({
   label,
   value,
-  options,
+  options = [],
   onChange,
 }: {
   label: string;
   value: string;
-  options: string[];
+  options?: string[];
   onChange: (v: string) => void;
 }) {
   const isActive = value !== "";

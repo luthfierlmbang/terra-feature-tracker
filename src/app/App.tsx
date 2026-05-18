@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Plus, Bot } from "lucide-react";
 import { AiAgentPanel } from "./components/ai-agent-panel";
 import { Sidebar, type NavKey } from "./components/sidebar";
@@ -13,7 +13,22 @@ import { UiButton } from "./components/primitives";
 import { LoginPage } from "./components/login-page";
 import { SettingsPage } from "./components/settings-page";
 import { toast, ToastProvider } from "./components/toast";
-import { loadDb, saveDb, INITIAL_SQUAD_OWNERS, INITIAL_MODULE_SQUADS, type UserAccount } from "./data/db";
+import { auth } from "./data/firebase";
+import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import {
+  subscribeToFeatures,
+  subscribeToConfig,
+  subscribeToUsers,
+  saveFeature,
+  deleteFeature,
+  saveConfig,
+  saveUser,
+  deleteUserProfile,
+  migrateFromLocalStorage,
+  INITIAL_SQUAD_OWNERS,
+  INITIAL_MODULE_SQUADS,
+  type UserAccount,
+} from "./data/firestore-db";
 import {
   INITIAL_FEATURES,
   FEATURE_STATUSES,
@@ -88,12 +103,7 @@ function applyFilters(features: Feature[], f: FilterState) {
 }
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem("feature_tracker_auth") === "true";
-  });
-  const [authUser, setAuthUser] = useState<string>(() => {
-    return localStorage.getItem("feature_tracker_auth_email") || "user@example.com";
-  });
+  const [firebaseUser, setFirebaseUser] = useState<User | null | undefined>(undefined);
   const [isDbLoaded, setIsDbLoaded] = useState(false);
 
   const [features, setFeatures] = useState<Feature[]>([]);
@@ -109,23 +119,41 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [showAiPanel, setShowAiPanel] = useState(false);
 
+  // Firebase Auth listener
   useEffect(() => {
-    if (isAuthenticated) {
-      const db = loadDb();
-      setFeatures(db.features);
-      setTypes(db.types);
-      setSquadOwners(db.squadOwners || INITIAL_SQUAD_OWNERS);
-      setModuleSquads(db.moduleSquads || INITIAL_MODULE_SQUADS);
-      setUsers(db.users || []);
-      setIsDbLoaded(true);
-    }
-  }, [isAuthenticated]);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+    });
+    return unsubscribe;
+  }, []);
 
+  // Firestore real-time subscriptions (only when logged in)
   useEffect(() => {
-    if (isDbLoaded) {
-      saveDb({ features, types, squadOwners, moduleSquads, users });
-    }
-  }, [features, types, squadOwners, moduleSquads, users, isDbLoaded]);
+    if (!firebaseUser) return;
+
+    // Run migration from localStorage (one-time)
+    migrateFromLocalStorage().then(({ migrated, count }) => {
+      if (migrated && count > 0) toast.success(`Migrated ${count} features to Firestore!`);
+    });
+
+    const unsubFeatures = subscribeToFeatures(setFeatures);
+    const unsubConfig = subscribeToConfig(({ types: t, squadOwners: so, moduleSquads: ms }) => {
+      setTypes(t);
+      setSquadOwners(so);
+      setModuleSquads(ms);
+    });
+    const unsubUsers = subscribeToUsers(setUsers);
+
+    // Mark db as loaded after first subscription response
+    const timer = setTimeout(() => setIsDbLoaded(true), 800);
+
+    return () => {
+      unsubFeatures();
+      unsubConfig();
+      unsubUsers();
+      clearTimeout(timer);
+    };
+  }, [firebaseUser]);
 
   // Only show non-archived features on dashboard (kept for data compat but UI has no archive)
   const activeFeatures = useMemo(() => features.filter((f) => !f.archived), [features]);
@@ -133,72 +161,65 @@ export default function App() {
 
   function handleFormSave(data: FeatureFormState) {
     setIsSaving(true);
-    setTimeout(() => {
-      const now = new Date().toISOString();
+    const now = new Date().toISOString();
 
-      if (activeForm?.mode === "edit" && activeForm.feature) {
-        setFeatures((prev) =>
-          prev.map((f) =>
-            f.id === activeForm.feature!.id
-              ? {
-                  ...f,
-                  ...data,
-                  squad: data.squad || undefined,
-                  targetReleaseDate: data.targetReleaseDate || undefined,
-                  releaseDate: data.releaseDate || undefined,
-                  existingDesignEvidence: data.existingDesignEvidence || undefined,
-                  figmaLink: data.figmaLink || undefined,
-                  designerPic: data.designerPic || undefined,
-                  designGapNotes: data.designGapNotes || undefined,
-                  researchNeeded: data.researchNeeded || undefined,
-                  researcherPic: data.researcherPic || undefined,
-                  uxEvaluationNeeded: data.uxEvaluationNeeded || undefined,
-                  notes: data.notes || undefined,
-                  uiScreens: data.uiScreens.length > 0 ? data.uiScreens : undefined,
-                  lastUpdated: now,
-                }
-              : f
-          )
-        );
-        toast({ title: "Changes saved", description: "The feature has been updated successfully." });
-      } else {
-        const newFeature: Feature = {
-          id: `f-${Date.now()}`,
-          ...data,
-          squad: data.squad || undefined,
-          targetReleaseDate: data.targetReleaseDate || undefined,
-          releaseDate: data.releaseDate || undefined,
-          existingDesignEvidence: data.existingDesignEvidence || undefined,
-          figmaLink: data.figmaLink || undefined,
-          designerPic: data.designerPic || undefined,
-          designGapNotes: data.designGapNotes || undefined,
-          researchNeeded: data.researchNeeded || undefined,
-          researcherPic: data.researcherPic || undefined,
-          uxEvaluationNeeded: data.uxEvaluationNeeded || undefined,
-          notes: data.notes || undefined,
-          uiScreens: data.uiScreens.length > 0 ? data.uiScreens : undefined,
-          lastUpdated: now,
-        };
-        setFeatures((prev) => [newFeature, ...prev]);
-        toast({ title: "Feature created", description: "The new feature has been added to tracking." });
-      }
-      setActiveForm(null);
-      setIsSaving(false);
-    }, 600);
+    if (activeForm?.mode === "edit" && activeForm.feature) {
+      const updated: Feature = {
+        ...activeForm.feature,
+        ...data,
+        squad: data.squad || undefined,
+        targetReleaseDate: data.targetReleaseDate || undefined,
+        releaseDate: data.releaseDate || undefined,
+        existingDesignEvidence: data.existingDesignEvidence || undefined,
+        figmaLink: data.figmaLink || undefined,
+        designerPic: data.designerPic || undefined,
+        designGapNotes: data.designGapNotes || undefined,
+        researchNeeded: data.researchNeeded || undefined,
+        researcherPic: data.researcherPic || undefined,
+        uxEvaluationNeeded: data.uxEvaluationNeeded || undefined,
+        notes: data.notes || undefined,
+        uiScreens: data.uiScreens.length > 0 ? data.uiScreens : undefined,
+        lastUpdated: now,
+      };
+      saveFeature(updated)
+        .then(() => toast({ title: "Changes saved", description: "The feature has been updated successfully." }))
+        .catch(() => toast({ title: "Error", description: "Failed to save.", type: "error" }))
+        .finally(() => setIsSaving(false));
+    } else {
+      const newFeature: Feature = {
+        id: `f-${Date.now()}`,
+        ...data,
+        squad: data.squad || undefined,
+        targetReleaseDate: data.targetReleaseDate || undefined,
+        releaseDate: data.releaseDate || undefined,
+        existingDesignEvidence: data.existingDesignEvidence || undefined,
+        figmaLink: data.figmaLink || undefined,
+        designerPic: data.designerPic || undefined,
+        designGapNotes: data.designGapNotes || undefined,
+        researchNeeded: data.researchNeeded || undefined,
+        researcherPic: data.researcherPic || undefined,
+        uxEvaluationNeeded: data.uxEvaluationNeeded || undefined,
+        notes: data.notes || undefined,
+        uiScreens: data.uiScreens.length > 0 ? data.uiScreens : undefined,
+        lastUpdated: now,
+      };
+      saveFeature(newFeature)
+        .then(() => toast({ title: "Feature created", description: "The new feature has been added to tracking." }))
+        .catch(() => toast({ title: "Error", description: "Failed to save.", type: "error" }))
+        .finally(() => setIsSaving(false));
+    }
+    setActiveForm(null);
   }
 
   function handleDelete(feature: Feature) {
     setIsSaving(true);
-    setTimeout(() => {
-      setFeatures((prev) => prev.filter((f) => f.id !== feature.id));
-      setDeleteTarget(null);
-      setIsSaving(false);
-      toast({
-        title: "Feature deleted",
-        description: `"${feature.name}" has been permanently deleted.`,
-        type: "error",
-      });
-    }, 500);
+    deleteFeature(feature.id)
+      .then(() => {
+        setDeleteTarget(null);
+        toast({ title: "Feature deleted", description: `"${feature.name}" has been permanently deleted.`, type: "error" });
+      })
+      .catch(() => toast({ title: "Error", description: "Failed to delete.", type: "error" }))
+      .finally(() => setIsSaving(false));
   }
 
   function handleRenameType(key: TypeKey, oldVal: string, newVal: string) {
@@ -308,29 +329,45 @@ export default function App() {
   const hasActiveFilters =
     Boolean(filters.squad) || Boolean(filters.year) || Boolean(filters.featureStatus) || filters.search.length > 0;
 
-  if (!isAuthenticated) {
+  // Show loading while Firebase checks auth state
+  if (firebaseUser === undefined) {
     return (
-      <LoginPage
-        onLogin={(email) => {
-          localStorage.setItem("feature_tracker_auth", "true");
-          localStorage.setItem("feature_tracker_auth_email", email);
-          setAuthUser(email);
-          setIsAuthenticated(true);
-        }}
-      />
+      <div className="flex h-screen w-full items-center justify-center bg-[#024042]">
+        <div className="flex flex-col items-center gap-3">
+          <img src="/logo.svg" alt="Terra Logo" className="h-8 w-auto brightness-0 invert opacity-80" />
+          <div className="flex gap-1">
+            <span className="size-2 rounded-full bg-white/60 animate-bounce" style={{ animationDelay: "0ms" }} />
+            <span className="size-2 rounded-full bg-white/60 animate-bounce" style={{ animationDelay: "150ms" }} />
+            <span className="size-2 rounded-full bg-white/60 animate-bounce" style={{ animationDelay: "300ms" }} />
+          </div>
+        </div>
+      </div>
     );
   }
 
-  if (!isDbLoaded) return null;
+  if (!firebaseUser) {
+    return <LoginPage onLogin={() => {}} />;
+  }
 
-  // Extract name and initials from email
-  const nameParts = authUser.split("@")[0].split(/[._-]/);
-  const name = nameParts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
-  const initials = nameParts.slice(0, 2).map(p => p.charAt(0).toUpperCase()).join("").substring(0, 2) || "U";
+  if (!isDbLoaded) return (
+    <div className="flex h-screen w-full items-center justify-center bg-[#f5f5f5]">
+      <div className="flex gap-1">
+        <span className="size-2 rounded-full bg-[#027479] animate-bounce" style={{ animationDelay: "0ms" }} />
+        <span className="size-2 rounded-full bg-[#027479] animate-bounce" style={{ animationDelay: "150ms" }} />
+        <span className="size-2 rounded-full bg-[#027479] animate-bounce" style={{ animationDelay: "300ms" }} />
+      </div>
+    </div>
+  );
+
+  // Extract name and initials from Firebase user
+  const displayEmail = firebaseUser.email || "user@tepat.com";
+  const displayName = firebaseUser.displayName || displayEmail.split("@")[0].split(/[._-]/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+  const nameParts = displayName.split(" ");
+  const initials = nameParts.slice(0, 2).map((p: string) => p.charAt(0).toUpperCase()).join("").substring(0, 2) || "U";
 
   const user = {
-    email: authUser,
-    name,
+    email: displayEmail,
+    name: displayName,
     initials,
   };
 
@@ -340,11 +377,7 @@ export default function App() {
         <Sidebar
           active={activeNav}
           onChange={(k) => { setActiveNav(k); setFilters(EMPTY_FILTERS); setActiveForm(null); setViewingFeature(null); }}
-          onLogout={() => {
-            localStorage.removeItem("feature_tracker_auth");
-            localStorage.removeItem("feature_tracker_auth_email");
-            setIsAuthenticated(false);
-          }}
+          onLogout={() => signOut(auth)}
           user={user}
         />
 
@@ -393,8 +426,8 @@ export default function App() {
                       onEdit={(f) => setActiveForm({ mode: "edit", feature: f })}
                       onDelete={(f) => setDeleteTarget(f)}
                       onClearFilters={() => setFilters(EMPTY_FILTERS)}
-                      squads={types.squad}
-                      featureStatuses={types.featureStatus}
+                      squads={types.squad || []}
+                      featureStatuses={types.featureStatus || []}
                       showAiPanel={showAiPanel}
                       onToggleAi={() => setShowAiPanel((v) => !v)}
                     />

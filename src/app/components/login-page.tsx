@@ -1,27 +1,39 @@
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
-import { loadDb } from "../data/db";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../data/firebase";
 
 export function LoginPage({ onLogin }: { onLogin: (email: string) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     if (!email || !password) return;
-    
-    const db = loadDb();
-    const user = db.users.find(u => u.email === email && u.password === password);
-    
-    if (!user) {
-      setError("Invalid email or password");
-      return;
+
+    setLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged in App.tsx will handle the rest
+    } catch (err: any) {
+      console.error("Firebase Auth Error Details:", err);
+      const code = err?.code || "unknown-error";
+      const message = err?.message || "";
+      
+      if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") {
+        setError(`Invalid email or password. (${code})`);
+      } else if (code === "auth/too-many-requests") {
+        setError("Too many failed attempts. Please try again later.");
+      } else {
+        setError(`Login failed: ${code} - ${message}`);
+      }
+    } finally {
+      setLoading(false);
     }
-    
-    onLogin(email);
   };
 
   return (
@@ -50,6 +62,7 @@ export function LoginPage({ onLogin }: { onLogin: (email: string) => void }) {
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-[#D0D5DD] px-3.5 py-2.5 text-[14px] text-[#101828] placeholder:text-[#667085] focus:border-[#027479] focus:outline-none focus:ring-4 focus:ring-[#027479]/10"
               required
+              disabled={loading}
             />
           </div>
 
@@ -63,6 +76,7 @@ export function LoginPage({ onLogin }: { onLogin: (email: string) => void }) {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-lg border border-[#D0D5DD] py-2.5 pl-3.5 pr-10 text-[14px] text-[#101828] placeholder:text-[#667085] focus:border-[#027479] focus:outline-none focus:ring-4 focus:ring-[#027479]/10"
                 required
+                disabled={loading}
               />
               <button
                 type="button"
@@ -79,9 +93,11 @@ export function LoginPage({ onLogin }: { onLogin: (email: string) => void }) {
           <div className="mt-2 flex flex-col gap-3">
             <button
               type="submit"
-              className="flex w-full items-center justify-center rounded-lg bg-[#027479] px-4 py-2.5 text-[14px] font-semibold text-white shadow-sm transition-colors hover:bg-[#015c61] focus:outline-none focus:ring-4 focus:ring-[#027479]/10"
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#027479] px-4 py-2.5 text-[14px] font-semibold text-white shadow-sm transition-colors hover:bg-[#015c61] focus:outline-none focus:ring-4 focus:ring-[#027479]/10 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Sign in
+              {loading && <Loader2 size={16} strokeWidth={2} className="animate-spin" />}
+              {loading ? "Signing in..." : "Sign in"}
             </button>
           </div>
         </form>
