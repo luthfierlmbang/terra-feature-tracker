@@ -1,0 +1,50 @@
+
+/* React Quill Customizations */
+.ql-toolbar.ql-snow {
+  border: none !important;
+  border-bottom: 1px solid #e5e5e5 !important;
+  background-color: #fafafa;
+  font-family: 'Inter', sans-serif !important;
+}
+.ql-container.ql-snow {
+  border: none !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 14px !important;
+  min-height: 120px;
+}
+.ql-editor {
+  min-height: 120px;
+}
+.ql-editor.ql-blank::before {
+  color: #737373 !important;
+  font-style: normal !important;
+}
+
+/* Interaction Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.animate-slide-up-fade {
+  animation: slideUpFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes slideDownFade {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(10px) scale(0.98); }
+}
