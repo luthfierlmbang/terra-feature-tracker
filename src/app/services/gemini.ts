@@ -102,7 +102,7 @@ export async function askGemini(
   const systemInstruction = `${context}\n\nCurrent mode: ${mode}. ${modeInstructions}`;
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash-preview-05-20",
     systemInstruction,
   });
 
@@ -128,7 +128,7 @@ export async function* streamGemini(
   const systemInstruction = `${context}\n\nCurrent mode: ${mode}. ${modeInstructions}`;
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash-preview-05-20",
     systemInstruction,
   });
 
