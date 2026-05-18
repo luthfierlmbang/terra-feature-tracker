@@ -13,7 +13,7 @@ import { UiButton } from "./components/primitives";
 import { LoginPage } from "./components/login-page";
 import { SettingsPage } from "./components/settings-page";
 import { toast, ToastProvider } from "./components/toast";
-import { auth } from "./data/firebase";
+import { auth, isFirebaseConfigured } from "./data/firebase";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import {
   subscribeToFeatures,
@@ -121,6 +121,10 @@ export default function App() {
 
   // Firebase Auth listener
   useEffect(() => {
+    if (!isFirebaseConfigured || !auth) {
+      setFirebaseUser(null);
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
     });
@@ -328,6 +332,35 @@ export default function App() {
 
   const hasActiveFilters =
     Boolean(filters.squad) || Boolean(filters.year) || Boolean(filters.featureStatus) || filters.search.length > 0;
+
+  // Render safe error screen if Firebase variables are missing in Vercel
+  if (!isFirebaseConfigured) {
+    return (
+      <div className="flex min-h-screen w-full flex-col items-center justify-center bg-[#024042] p-6 text-white text-center" style={{ fontFamily: "Inter, sans-serif" }}>
+        <div className="max-w-md rounded-2xl bg-white p-8 text-[#171717] shadow-2xl flex flex-col items-center gap-4">
+          <div className="flex size-12 items-center justify-center rounded-full bg-red-100 text-red-600">
+            <span className="text-xl font-bold">⚠️</span>
+          </div>
+          <h2 className="text-xl font-bold text-red-600">Firebase Configuration Missing</h2>
+          <p className="text-sm text-[#525252] leading-relaxed">
+            Aplikasi tidak dapat terhubung ke Firebase karena <strong>Environment Variables</strong> di Vercel belum dikonfigurasi atau belum dimuat.
+          </p>
+          <div className="w-full text-left rounded-lg bg-gray-50 p-4 border border-[#e5e5e5]">
+            <p className="text-xs font-semibold text-[#171717] mb-2">Langkah Penyelesaian:</p>
+            <ol className="list-decimal list-inside text-xs text-[#525252] space-y-1.5 leading-relaxed">
+              <li>Buka dashboard Vercel untuk project ini.</li>
+              <li>Masuk ke <strong>Settings → Environment Variables</strong>.</li>
+              <li>Masukkan 7 variabel API Key Firebase & Gemini.</li>
+              <li>Lakukan <strong>Redeploy</strong> pada deployment terbaru.</li>
+            </ol>
+          </div>
+          <p className="text-[11px] text-[#a3a3a3]">
+            Perubahan konfigurasi membutuhkan build ulang (Redeploy) agar bisa diterapkan.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Show loading while Firebase checks auth state
   if (firebaseUser === undefined) {
