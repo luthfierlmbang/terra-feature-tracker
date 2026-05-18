@@ -189,8 +189,17 @@ export default function App() {
     setIsSaving(true);
     const now = new Date().toISOString();
 
+    // Firestore rejects documents that contain `undefined` values.
+    // This helper strips all undefined keys before writing.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function sanitize(obj: Record<string, any>): Record<string, any> {
+      return Object.fromEntries(
+        Object.entries(obj).filter(([, v]) => v !== undefined)
+      );
+    }
+
     if (activeForm?.mode === "edit" && activeForm.feature) {
-      const updated: Feature = {
+      const updated: Feature = sanitize({
         ...activeForm.feature,
         ...data,
         squad: data.squad || undefined,
@@ -204,13 +213,13 @@ export default function App() {
         notes: data.notes || undefined,
         uiScreens: data.uiScreens.length > 0 ? data.uiScreens : undefined,
         lastUpdated: now,
-      };
+      }) as Feature;
       saveFeature(updated)
         .then(() => toast({ title: "Changes saved", description: "The feature has been updated successfully." }))
-        .catch(() => toast({ title: "Error", description: "Failed to save.", type: "error" }))
+        .catch((err) => toast({ title: "Error", description: `Failed to save: ${err?.message || String(err)}`, type: "error" }))
         .finally(() => setIsSaving(false));
     } else {
-      const newFeature: Feature = {
+      const newFeature: Feature = sanitize({
         id: `f-${Date.now()}`,
         ...data,
         squad: data.squad || undefined,
@@ -224,10 +233,10 @@ export default function App() {
         notes: data.notes || undefined,
         uiScreens: data.uiScreens.length > 0 ? data.uiScreens : undefined,
         lastUpdated: now,
-      };
+      }) as Feature;
       saveFeature(newFeature)
         .then(() => toast({ title: "Feature created", description: "The new feature has been added to tracking." }))
-        .catch(() => toast({ title: "Error", description: "Failed to save.", type: "error" }))
+        .catch((err) => toast({ title: "Error", description: `Failed to save: ${err?.message || String(err)}`, type: "error" }))
         .finally(() => setIsSaving(false));
     }
     setActiveForm(null);
