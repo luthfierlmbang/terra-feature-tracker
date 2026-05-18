@@ -64,6 +64,31 @@ const MODE_SYSTEM_PROMPTS: Record<AgentMode, string> = {
     "Provide a concise executive summary of the current feature tracker state. Highlight key metrics, progress, and concerns.",
 };
 
+// ─── Chat History Helper ──────────────────────────────────────────────────────
+
+function buildChatHistory(chatHistory: ChatMessage[]) {
+  const history = [];
+  let lookingForUser = true;
+
+  for (const msg of chatHistory) {
+    // Gemini chat history MUST start with a 'user' message
+    if (lookingForUser && msg.role !== "user") {
+      continue;
+    }
+    lookingForUser = false;
+
+    // Skip empty or placeholder messages
+    if (!msg.content || msg.content.trim() === "") continue;
+
+    history.push({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text: msg.content }],
+    });
+  }
+
+  return history;
+}
+
 // ─── Main API Functions ───────────────────────────────────────────────────────
 
 export async function askGemini(
@@ -77,11 +102,8 @@ export async function askGemini(
   const context = buildFeatureContext(features);
   const modeInstructions = MODE_SYSTEM_PROMPTS[mode];
 
-  // Build history for multi-turn conversation
-  const history = chatHistory.slice(-10).map((msg) => ({
-    role: msg.role === "assistant" ? "model" : "user",
-    parts: [{ text: msg.content }],
-  }));
+  // Build history for multi-turn conversation (must start with 'user')
+  const history = buildChatHistory(chatHistory);
 
   const chat = model.startChat({
     history,
@@ -103,10 +125,7 @@ export async function* streamGemini(
   const context = buildFeatureContext(features);
   const modeInstructions = MODE_SYSTEM_PROMPTS[mode];
 
-  const history = chatHistory.slice(-10).map((msg) => ({
-    role: msg.role === "assistant" ? "model" : "user",
-    parts: [{ text: msg.content }],
-  }));
+  const history = buildChatHistory(chatHistory);
 
   const chat = model.startChat({
     history,
