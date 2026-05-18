@@ -172,21 +172,21 @@ export function subscribeToUsers(
 
 // ─── Data Migration (run once from localStorage) ──────────────────────────────
 
-export async function migrateFromLocalStorage(): Promise<{
+export async function migrateFromLocalStorage(force = false): Promise<{
   migrated: boolean;
   count: number;
 }> {
   const LOCAL_DB_KEY = "feature_tracker_db";
   const MIGRATED_KEY = "feature_tracker_migrated";
 
-  // Skip if already migrated
-  if (localStorage.getItem(MIGRATED_KEY) === "true") {
+  // Skip if already migrated, unless forced
+  if (!force && localStorage.getItem(MIGRATED_KEY) === "true") {
     return { migrated: false, count: 0 };
   }
 
   const raw = localStorage.getItem(LOCAL_DB_KEY);
   if (!raw) {
-    localStorage.setItem(MIGRATED_KEY, "true");
+    if (!force) localStorage.setItem(MIGRATED_KEY, "true");
     return { migrated: true, count: 0 };
   }
 

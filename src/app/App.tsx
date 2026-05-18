@@ -126,6 +126,20 @@ export default function App() {
   const [deleteTarget, setDeleteTarget] = useState<Feature | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showAiPanel, setShowAiPanel] = useState(false);
+  const [hasLocalData, setHasLocalData] = useState(false);
+
+  // Check for local data that hasn't been migrated
+  useEffect(() => {
+    const raw = localStorage.getItem("feature_tracker_db");
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.features && parsed.features.length > 0) {
+          setHasLocalData(true);
+        }
+      } catch (e) {}
+    }
+  }, []);
 
   // Firebase Auth listener
   useEffect(() => {
@@ -468,7 +482,43 @@ export default function App() {
             {!activeForm && !viewingFeature && (
               <>
                 {activeNav === "dashboard" && (
-                  <div className="animate-fade-in h-full">
+                  <div className="animate-fade-in h-full flex flex-col">
+                    {hasLocalData && (
+                      <div className="mx-6 mt-6 flex items-center justify-between rounded-xl bg-amber-50 border border-amber-200 p-4 text-amber-900 shadow-sm animate-fade-in">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">📦</span>
+                          <div>
+                            <h4 className="font-semibold text-sm">Data Lokal Lama Terdeteksi!</h4>
+                            <p className="text-xs text-amber-700">Kami menemukan data fitur lama Anda di browser ini. Apakah Anda ingin mengimpornya ke cloud Firebase?</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={async () => {
+                              setIsSaving(true);
+                              try {
+                                const { count } = await migrateFromLocalStorage(true);
+                                setHasLocalData(false);
+                                toast.success(`Berhasil mengimpor ${count} fitur ke cloud Firebase!`);
+                              } catch (err) {
+                                toast.error("Gagal melakukan migrasi.");
+                              } finally {
+                                setIsSaving(false);
+                              }
+                            }}
+                            className="rounded-lg bg-amber-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-amber-700 transition"
+                          >
+                            Migrasi Sekarang
+                          </button>
+                          <button 
+                            onClick={() => setHasLocalData(false)}
+                            className="rounded-lg border border-amber-300 bg-white px-3.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 transition"
+                          >
+                            Abaikan
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <DashboardView
                       features={activeFeatures}
                       filtered={filtered}
