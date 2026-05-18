@@ -128,6 +128,40 @@ export async function saveConfig(config: {
   await setDoc(configDoc(), config, { merge: true });
 }
 
+/**
+ * Ensures the config document exists with at least the initial default values.
+ * Uses merge:true so existing user data is preserved, but any missing keys
+ * (e.g. from a previously corrupt save) get filled in with defaults.
+ */
+export async function ensureConfigExists(): Promise<void> {
+  const snap = await getDoc(configDoc());
+  if (!snap.exists()) {
+    // No config doc — seed it with full defaults
+    await setDoc(configDoc(), {
+      types: INITIAL_TYPES,
+      squadOwners: INITIAL_SQUAD_OWNERS,
+      moduleSquads: INITIAL_MODULE_SQUADS,
+    });
+  } else {
+    // Config exists but may be missing keys — repair with merge
+    const data = snap.data();
+    const repairedTypes: Record<string, unknown> = {};
+    for (const key of Object.keys(INITIAL_TYPES)) {
+      if (!data.types || !Array.isArray(data.types[key]) || data.types[key].length === 0) {
+        repairedTypes[key] = (INITIAL_TYPES as any)[key];
+      }
+    }
+    if (Object.keys(repairedTypes).length > 0) {
+      const existingTypes = data.types || {};
+      await setDoc(configDoc(), {
+        types: { ...existingTypes, ...repairedTypes },
+        squadOwners: data.squadOwners || INITIAL_SQUAD_OWNERS,
+        moduleSquads: data.moduleSquads || INITIAL_MODULE_SQUADS,
+      }, { merge: true });
+    }
+  }
+}
+
 export function subscribeToConfig(
   callback: (config: {
     types: TypesState;
@@ -142,6 +176,13 @@ export function subscribeToConfig(
         types: { ...INITIAL_TYPES, ...(data.types || {}) },
         squadOwners: { ...INITIAL_SQUAD_OWNERS, ...(data.squadOwners || {}) },
         moduleSquads: { ...INITIAL_MODULE_SQUADS, ...(data.moduleSquads || {}) },
+      });
+    } else {
+      // Document doesn't exist yet — return initial defaults
+      callback({
+        types: INITIAL_TYPES,
+        squadOwners: INITIAL_SQUAD_OWNERS,
+        moduleSquads: INITIAL_MODULE_SQUADS,
       });
     }
   });

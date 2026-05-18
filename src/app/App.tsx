@@ -25,6 +25,7 @@ import {
   saveUser,
   deleteUserProfile,
   migrateFromLocalStorage,
+  ensureConfigExists,
   INITIAL_SQUAD_OWNERS,
   INITIAL_MODULE_SQUADS,
   type UserAccount,
@@ -119,7 +120,7 @@ export default function App() {
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [activeForm, setActiveForm] = useState<{ mode: "add" | "edit"; feature?: Feature } | null>(null);
   const [viewingFeature, setViewingFeature] = useState<Feature | null>(null);
-  const [types, setTypes] = useState<TypesState>({} as TypesState);
+  const [types, setTypes] = useState<TypesState>(INITIAL_TYPES);
   const [squadOwners, setSquadOwners] = useState<Record<string, string>>(INITIAL_SQUAD_OWNERS);
   const [moduleSquads, setModuleSquads] = useState<Record<string, string>>(INITIAL_MODULE_SQUADS);
   const [users, setUsers] = useState<UserAccount[]>([]);
@@ -127,6 +128,28 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [showAiPanel, setShowAiPanel] = useState(false);
   const [hasLocalData, setHasLocalData] = useState(false);
+
+  // Refs to always hold the latest config state — avoids stale closures in
+  // sequential saveConfig calls (e.g. addItem calls onChange then onSquadOwnerChange)
+  const typesRef = useRef(types);
+  const squadOwnersRef = useRef(squadOwners);
+  const moduleSquadsRef = useRef(moduleSquads);
+  useEffect(() => { typesRef.current = types; }, [types]);
+  useEffect(() => { squadOwnersRef.current = squadOwners; }, [squadOwners]);
+  useEffect(() => { moduleSquadsRef.current = moduleSquads; }, [moduleSquads]);
+
+  // Debounced config persist — batches rapid successive calls into one write
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function persistConfig() {
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    persistTimer.current = setTimeout(() => {
+      saveConfig({
+        types: typesRef.current,
+        squadOwners: squadOwnersRef.current,
+        moduleSquads: moduleSquadsRef.current,
+      }).catch((err) => console.error("Failed to save config:", err));
+    }, 100);
+  }
 
   // Check for local data that hasn't been migrated
   useEffect(() => {
@@ -161,6 +184,11 @@ export default function App() {
     migrateFromLocalStorage().then(({ migrated, count }) => {
       if (migrated && count > 0) toast.success(`Migrated ${count} features to Firestore!`);
     });
+
+    // Ensure config document exists with initial values (one-time seed/repair)
+    ensureConfigExists().catch((err) =>
+      console.error("Failed to ensure config exists:", err)
+    );
 
     const unsubFeatures = subscribeToFeatures(setFeatures);
     const unsubConfig = subscribeToConfig(({ types: t, squadOwners: so, moduleSquads: ms }) => {
@@ -277,6 +305,7 @@ export default function App() {
       [key]: types[key].map((v) => (v === oldVal ? newVal : v)),
     };
     setTypes(newTypes);
+    typesRef.current = newTypes;
 
     let newSquadOwners = squadOwners;
     let newModuleSquads = moduleSquads;
@@ -288,6 +317,7 @@ export default function App() {
         delete newSquadOwners[oldVal];
       }
       setSquadOwners(newSquadOwners);
+      squadOwnersRef.current = newSquadOwners;
 
       // Also update any module that was linked to this squad
       newModuleSquads = { ...moduleSquads };
@@ -297,6 +327,7 @@ export default function App() {
         }
       }
       setModuleSquads(newModuleSquads);
+      moduleSquadsRef.current = newModuleSquads;
     } else if (key === "module") {
       newModuleSquads = { ...moduleSquads };
       if (oldVal in newModuleSquads) {
@@ -304,11 +335,11 @@ export default function App() {
         delete newModuleSquads[oldVal];
       }
       setModuleSquads(newModuleSquads);
+      moduleSquadsRef.current = newModuleSquads;
     }
 
-    // Persist config to Firestore
-    saveConfig({ types: newTypes, squadOwners: newSquadOwners, moduleSquads: newModuleSquads })
-      .catch((err) => console.error("Failed to save config after rename:", err));
+    // Persist config to Firestore (debounced to avoid race conditions)
+    persistConfig();
 
     // Also update affected features in Firestore
     setFeatures((prev) =>
@@ -337,6 +368,7 @@ export default function App() {
       [key]: types[key].filter((v) => v !== val),
     };
     setTypes(newTypes);
+    typesRef.current = newTypes;
 
     let newSquadOwners = squadOwners;
     let newModuleSquads = moduleSquads;
@@ -345,6 +377,7 @@ export default function App() {
       newSquadOwners = { ...squadOwners };
       delete newSquadOwners[val];
       setSquadOwners(newSquadOwners);
+      squadOwnersRef.current = newSquadOwners;
 
       // Unlink the squad from any modules that used it
       newModuleSquads = { ...moduleSquads };
@@ -354,15 +387,16 @@ export default function App() {
         }
       }
       setModuleSquads(newModuleSquads);
+      moduleSquadsRef.current = newModuleSquads;
     } else if (key === "module") {
       newModuleSquads = { ...moduleSquads };
       delete newModuleSquads[val];
       setModuleSquads(newModuleSquads);
+      moduleSquadsRef.current = newModuleSquads;
     }
 
-    // Persist config to Firestore
-    saveConfig({ types: newTypes, squadOwners: newSquadOwners, moduleSquads: newModuleSquads })
-      .catch((err) => console.error("Failed to save config after delete:", err));
+    // Persist config to Firestore (debounced to avoid race conditions)
+    persistConfig();
 
     // Also update affected features in Firestore
     setFeatures((prev) =>
@@ -388,15 +422,15 @@ export default function App() {
   function handleSquadOwnerChange(squad: string, owner: string) {
     const newSquadOwners = { ...squadOwners, [squad]: owner };
     setSquadOwners(newSquadOwners);
-    saveConfig({ types, squadOwners: newSquadOwners, moduleSquads })
-      .catch((err) => console.error("Failed to save squad owner:", err));
+    squadOwnersRef.current = newSquadOwners;
+    persistConfig();
   }
 
   function handleModuleSquadChange(moduleName: string, squad: string) {
     const newModuleSquads = { ...moduleSquads, [moduleName]: squad };
     setModuleSquads(newModuleSquads);
-    saveConfig({ types, squadOwners, moduleSquads: newModuleSquads })
-      .catch((err) => console.error("Failed to save module squad:", err));
+    moduleSquadsRef.current = newModuleSquads;
+    persistConfig();
   }
 
   const hasActiveFilters =
@@ -591,8 +625,8 @@ export default function App() {
                       types={types}
                       onChange={(newTypes) => {
                         setTypes(newTypes);
-                        saveConfig({ types: newTypes, squadOwners, moduleSquads })
-                          .catch((err) => console.error("Failed to save config:", err));
+                        typesRef.current = newTypes;
+                        persistConfig();
                       }}
                       onRename={handleRenameType}
                       onDelete={handleDeleteType}
