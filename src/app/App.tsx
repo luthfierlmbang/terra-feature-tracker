@@ -353,6 +353,14 @@ export default function App() {
               <li>Masukkan 7 variabel API Key Firebase & Gemini.</li>
               <li>Lakukan <strong>Redeploy</strong> pada deployment terbaru.</li>
             </ol>
+            <div className="mt-4 border-t pt-3 border-gray-200">
+              <p className="text-xs font-semibold text-[#171717] mb-1">Diagnostic Info (Vercel Build):</p>
+              <pre className="text-[10px] text-gray-500 overflow-x-auto whitespace-pre-wrap break-all bg-gray-100 p-2 rounded">
+                API_KEY: {typeof import.meta.env.VITE_FIREBASE_API_KEY === 'string' ? `"${import.meta.env.VITE_FIREBASE_API_KEY.substring(0, 5)}..." (len: ${import.meta.env.VITE_FIREBASE_API_KEY.length})` : String(import.meta.env.VITE_FIREBASE_API_KEY)}
+                {"\n"}
+                IS_CONFIGURED: {String(isFirebaseConfigured)}
+              </pre>
+            </div>
           </div>
           <p className="text-[11px] text-[#a3a3a3]">
             Perubahan konfigurasi membutuhkan build ulang (Redeploy) agar bisa diterapkan.
