@@ -186,11 +186,12 @@ export function AiAgentPanel({
           prev.map((m) => (m.id === assistantId ? { ...m, content: fullText } : m))
         );
       }
-    } catch (err) {
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? { ...m, content: "⚠️ Gagal mendapat respons. Pastikan Gemini API key sudah benar di file `.env`." }
+            ? { ...m, content: `⚠️ Gagal mendapat respons dari Gemini.\n\n**Detail Error:**\n\`${errMsg}\`\n\nPastikan VITE_GEMINI_API_KEY sudah benar di Vercel/lokal.` }
             : m
         )
       );
