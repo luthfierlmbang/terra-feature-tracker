@@ -1,13 +1,34 @@
 /**
- * gemini.ts
- * Service layer for communicating with Google Gemini AI.
- * Provides context-aware responses based on Feature Tracker data.
+ * gemini.ts — Tepat AI Service Layer
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ARCHITECTURE: Context-First Injection Pattern
+ *
+ * PROBLEM SOLVED: "Context Blindness"
+ *   When Gemini receives an empty feature array it previously replied with
+ *   "Tidak ada fitur yang ditemukan" — unhelpful and passive.
+ *
+ * SOLUTION: Two-branch system instruction
+ *   Branch A (features > 0) → Rich data context injected as structured JSON.
+ *   Branch B (features = 0) → Static identity + proactive empty-state guide.
+ *   The dashboard name and identity are ALWAYS injected regardless of branch.
+ *
+ * This file is the single source of truth for ALL Gemini prompt logic.
  */
+
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { Feature } from "../data/features";
 import type { TypesState } from "../components/customize-types";
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
+
+// ─── Constants (static identity — never changes) ──────────────────────────────
+
+const DASHBOARD_NAME = "Feature Design Visibility Tracker";
+const DASHBOARD_OWNER_TEAM = "Product & Design Team";
+const DASHBOARD_PURPOSE =
+  "Melacak visibilitas pengembangan fitur, status desain, ketersediaan Figma, " +
+  "PIC desainer/peneliti, dan tindakan yang dibutuhkan untuk setiap fitur produk.";
+const GEMINI_MODEL = "gemini-2.5-flash";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,87 +42,192 @@ export type ChatMessage = {
   mode?: AgentMode;
 };
 
-// ─── Context Builder ──────────────────────────────────────────────────────────
-
-function buildFeatureContext(features: Feature[], types?: TypesState): string {
-  if (!features.length) return "No features found in the tracker.";
-
-  const summary = features.map((f) => ({
-    name: f.name,
-    module: f.module,
-    squad: f.squad || "—",
-    status: f.featureStatus,
-    designStatus: f.designStatus,
-    actionNeeded: f.actionNeeded,
-    poPic: f.poPic,
-    designerPic: f.designerPic || "—",
-    researcherPic: f.researcherPic || "—",
-    figmaLink: f.figmaLink || "—",
-    targetReleaseDate: f.targetReleaseDate || "—",
-    description: f.description?.replace(/<[^>]+>/g, "").slice(0, 200) || "—",
-  }));
-
-  return `
-You are an AI assistant embedded directly inside a Feature Tracker dashboard for a product/design team.
-IMPORTANT: You ALREADY HAVE FULL ACCESS to the user's dashboard data! The data is provided to you below in JSON format.
-When the user asks "read my dashboard" or asks about any data, you MUST analyze the JSON below and answer confidently. NEVER say you cannot see or access the dashboard.
-
-=== CURRENT DASHBOARD DATA ===
-FEATURES (${features.length} total):
-${JSON.stringify(summary, null, 2)}
-==============================
-
-Context details:
-${types ? `
-- Available Squads: ${types.squad?.join(", ")}
-- Available Modules: ${types.module?.join(", ")}
-- Feature Status options: ${types.featureStatus?.join(", ")}
-- Design Status options: ${types.designStatus?.join(", ")}
-- Action Needed options: ${types.action?.join(", ")}
-- Design Source options: ${types.designSource?.join(", ")}
-` : `
-- Feature Status options: On Progress, Released, Backlog, On Hold
-- Design Status options: Ready to Dev, Need Review, On Progress, No Design Yet
-- Action Needed options: Need Design, Need Figma Link, Need Design Review, Need Redesign, No Action
-`}
-
-Rules:
-1. DO NOT use generic AI intros like "Tentu", "Tentu saja", "Baik", or "Tentu, berikut adalah...". Get straight to the answer immediately.
-2. If the user asks "what is this dashboard" or "what are the menus", explain that this is a "Feature Tracker Dashboard" for Product and Design teams to track feature development visibility, design source, Figma links, and action needed. DO NOT invent generic dashboard modules like "Sales Analytics" or "Marketing Analytics".
-3. Always base your answers ONLY on the JSON data and context provided above.
-4. If the user asks how many squads there are, count the unique "squad" values from the data.
-5. Always respond in the same language the user uses (Indonesian or English).
-6. Be concise, helpful, and data-driven. Format tables using markdown when helpful.
-  `.trim();
-}
-
 // ─── Mode Prompts ─────────────────────────────────────────────────────────────
 
 const MODE_SYSTEM_PROMPTS: Record<AgentMode, string> = {
-  qa: "Answer questions about the feature data accurately. If data is missing, say so.",
+  qa:
+    "Jawab setiap pertanyaan berdasarkan data JSON yang tersedia. Jika data tidak ada, katakan dengan jelas.",
   draft:
-    "Help draft feature descriptions or business impact statements. Be structured and clear.",
+    "Bantu menulis deskripsi fitur atau business impact statement yang terstruktur dan jelas.",
   report:
-    "Generate a structured status report in markdown format. Include summary tables, highlight blockers, and list items needing attention.",
+    "Buat laporan status dalam format markdown yang terstruktur: tabel ringkasan, blocker, dan item yang butuh tindakan.",
   summarize:
-    "Provide a concise executive summary of the current feature tracker state. Highlight key metrics, progress, and concerns.",
+    "Buat ringkasan eksekutif singkat dari kondisi tracker saat ini. Highlight metrik utama, progres, dan risiko.",
 };
 
+// ─── System Instruction Builder ───────────────────────────────────────────────
+// REASONING: System instruction dipisah dari user message agar Gemini
+// memperlakukannya sebagai "identitas permanen", bukan instruksi sementara
+// yang bisa tertimpa user. Ini adalah pendekatan paling robust sesuai
+// dokumentasi Gemini API v1beta.
+
+function buildSystemInstruction(
+  features: Feature[],
+  types: TypesState | undefined,
+  mode: AgentMode
+): string {
+  const modeGuide = MODE_SYSTEM_PROMPTS[mode];
+
+  // ── BRANCH A: Data tersedia ──────────────────────────────────────────────
+  if (features.length > 0) {
+    const featureRows = features.map((f) => ({
+      name: f.name,
+      module: f.module,
+      squad: f.squad || "—",
+      featureStatus: f.featureStatus,
+      designStatus: f.designStatus,
+      actionNeeded: f.actionNeeded,
+      poPic: f.poPic || "—",
+      designerPic: f.designerPic || "—",
+      researcherPic: f.researcherPic || "—",
+      figmaLink: f.figmaLink ? "Tersedia" : "Belum ada",
+      targetReleaseDate: f.targetReleaseDate || "—",
+      description: f.description?.replace(/<[^>]+>/g, "").slice(0, 200) || "—",
+    }));
+
+    // Compute quick stats untuk memperkaya jawaban tanpa user perlu bertanya
+    const stats = {
+      total: features.length,
+      byStatus: groupCount(features, (f) => f.featureStatus),
+      byDesignStatus: groupCount(features, (f) => f.designStatus),
+      byActionNeeded: groupCount(features, (f) => f.actionNeeded),
+      uniqueSquads: [...new Set(features.map((f) => f.squad).filter(Boolean))],
+      uniqueModules: [...new Set(features.map((f) => f.module).filter(Boolean))],
+      withFigma: features.filter((f) => f.figmaLink).length,
+      withoutFigma: features.filter((f) => !f.figmaLink).length,
+    };
+
+    return `
+# Identitas & Peran
+
+Kamu adalah **Tepat AI**, asisten AI internal yang tertanam di dalam aplikasi **${DASHBOARD_NAME}**.
+Kamu bekerja untuk tim **${DASHBOARD_OWNER_TEAM}**.
+Tujuan dashboard ini: ${DASHBOARD_PURPOSE}
+
+---
+
+# Mode Aktif: ${mode.toUpperCase()}
+
+${modeGuide}
+
+---
+
+# Data Dashboard (Real-Time)
+
+Kamu memiliki **akses penuh** ke data berikut yang diambil langsung dari database saat ini.
+JANGAN PERNAH bilang kamu tidak bisa melihat atau mengakses dashboard.
+
+## Statistik Cepat
+\`\`\`json
+${JSON.stringify(stats, null, 2)}
+\`\`\`
+
+## Data Lengkap Fitur (${features.length} fitur)
+\`\`\`json
+${JSON.stringify(featureRows, null, 2)}
+\`\`\`
+
+${
+  types
+    ? `## Konfigurasi Tipe (dari Settings Dashboard)
+- **Squads tersedia:** ${types.squad?.join(", ") || "—"}
+- **Modules tersedia:** ${types.module?.join(", ") || "—"}
+- **Feature Status:** ${types.featureStatus?.join(", ") || "—"}
+- **Design Status:** ${types.designStatus?.join(", ") || "—"}
+- **Action Needed:** ${types.action?.join(", ") || "—"}`
+    : `## Referensi Status
+- **Feature Status:** On Progress, Released, Backlog, On Hold
+- **Design Status:** Ready to Dev, Need Review, On Progress, No Design Yet
+- **Action Needed:** Need Design, Need Figma Link, Need Design Review, Need Redesign, No Action`
+}
+
+---
+
+# Aturan Perilaku (WAJIB DIIKUTI)
+
+1. **NO FILLER PHRASES** — DILARANG memulai jawaban dengan: "Tentu", "Tentu saja", "Baik", "Oke", "Tentu, berikut...", "Dengan senang hati". Langsung jawab intinya.
+2. **DATA-GROUNDED** — Semua jawaban HARUS berdasarkan data JSON di atas. Jangan karang informasi.
+3. **PROAKTIF** — Jika ada pola menarik dari data (banyak fitur Backlog, banyak yang tidak punya Figma, dll), sebutkan proaktif.
+4. **BAHASA ADAPTIF** — Gunakan bahasa yang sama dengan user (Bahasa Indonesia atau Inggris).
+5. **FORMAT MARKDOWN** — Gunakan tabel markdown untuk data komparatif, bullet list untuk daftar, bold untuk angka penting.
+6. **TEPAT & RINGKAS** — Jangan terlalu panjang. Utamakan kepadatan informasi.
+`.trim();
+  }
+
+  // ── BRANCH B: Empty State — data belum ada atau 0 fitur ─────────────────
+  // REASONING: Daripada diam atau pasif, Gemini harus menjadi guide aktif
+  // yang mendorong user untuk mulai mengisi data agar tracker bermanfaat.
+  return `
+# Identitas & Peran
+
+Kamu adalah **Tepat AI**, asisten AI internal yang tertanam di dalam aplikasi **${DASHBOARD_NAME}**.
+Kamu bekerja untuk tim **${DASHBOARD_OWNER_TEAM}**.
+Tujuan dashboard ini: ${DASHBOARD_PURPOSE}
+
+---
+
+# Status: Dashboard Masih Kosong
+
+Saat ini, **belum ada fitur yang tercatat** di dalam tracker ini.
+Ini berarti kamu belum bisa memberikan analisis berbasis data.
+
+---
+
+# Panduan untuk Membantu User (Empty State Mode)
+
+Ketika user bertanya tentang data (fitur, squad, status, dll), kamu HARUS:
+1. Sampaikan secara ramah bahwa tracker masih kosong (belum ada data).
+2. Jelaskan cara mulai mengisi: klik tombol **"+ Add Feature"** di dashboard.
+3. Jelaskan field-field penting yang perlu diisi: Nama Fitur, Module, Squad, Status Fitur, Status Desain, PIC, dan apakah ada Figma link.
+4. Tawarkan untuk membantu draft deskripsi atau template fitur pertama mereka jika diminta.
+
+Ketika user bertanya tentang dashboard ini secara umum, jelaskan:
+- Nama: **${DASHBOARD_NAME}**
+- Untuk tim: **${DASHBOARD_OWNER_TEAM}**
+- Fungsi: ${DASHBOARD_PURPOSE}
+- Fitur-fitur utama: melacak status fitur, status desain, kebutuhan tindakan, PIC desainer & researcher, link Figma.
+
+---
+
+# Aturan Perilaku (WAJIB DIIKUTI)
+
+1. **NO FILLER PHRASES** — DILARANG memulai jawaban dengan: "Tentu", "Tentu saja", "Baik", "Oke". Langsung jawab.
+2. **JANGAN PASIF** — Jangan hanya bilang "tidak ada data". Selalu arahkan user ke langkah selanjutnya.
+3. **IDENTITAS STATIS TERSEDIA** — Kamu TAHU nama dashboard ini, tujuannya, dan tim penggunanya. Jawab pertanyaan tentang identitas dashboard dengan percaya diri.
+4. **BAHASA ADAPTIF** — Gunakan bahasa yang sama dengan user.
+5. **TETAP HELPFUL** — Kamu bisa tetap membantu: draft template fitur, menjelaskan cara penggunaan, atau memberikan tips pelacakan fitur yang baik.
+`.trim();
+}
+
+// ─── Utility: Group Count ─────────────────────────────────────────────────────
+
+function groupCount<T>(arr: T[], key: (item: T) => string | undefined): Record<string, number> {
+  return arr.reduce(
+    (acc, item) => {
+      const k = key(item) || "Unknown";
+      acc[k] = (acc[k] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+}
+
 // ─── Chat History Helper ──────────────────────────────────────────────────────
+// REASONING: Gemini API mensyaratkan history harus dimulai dari role "user".
+// Fungsi ini memfilter dan memvalidasi history sebelum dikirim.
 
 function buildChatHistory(chatHistory: ChatMessage[]) {
-  const history = [];
-  let lookingForUser = true;
+  const history: { role: string; parts: { text: string }[] }[] = [];
+  let foundFirstUser = false;
 
   for (const msg of chatHistory) {
-    // Gemini chat history MUST start with a 'user' message
-    if (lookingForUser && msg.role !== "user") {
-      continue;
+    if (!foundFirstUser) {
+      if (msg.role !== "user") continue;
+      foundFirstUser = true;
     }
-    lookingForUser = false;
 
-    // Skip empty or placeholder messages
-    if (!msg.content || msg.content.trim() === "") continue;
+    // Skip empty or loading-state messages
+    if (!msg.content || msg.content.trim() === "" || msg.content === "...") continue;
 
     history.push({
       role: msg.role === "assistant" ? "model" : "user",
@@ -112,35 +238,25 @@ function buildChatHistory(chatHistory: ChatMessage[]) {
   return history;
 }
 
-// ─── Main API Functions ───────────────────────────────────────────────────────
+// ─── Guard: Prevent stale/empty API calls ────────────────────────────────────
+// REASONING: Jika API key tidak ada, lebih baik gagal cepat dengan pesan jelas
+// daripada membuat request yang pasti error ke Google.
 
-export async function askGemini(
-  userMessage: string,
-  features: Feature[],
-  types: TypesState | undefined,
-  mode: AgentMode = "qa",
-  chatHistory: ChatMessage[] = []
-): Promise<string> {
-  const context = buildFeatureContext(features, types);
-  const modeInstructions = MODE_SYSTEM_PROMPTS[mode];
-  const systemInstruction = `${context}\n\nCurrent mode: ${mode}. ${modeInstructions}`;
-
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
-    systemInstruction,
-  });
-
-  // Build history for multi-turn conversation (must start with 'user')
-  const history = buildChatHistory(chatHistory);
-
-  const chat = model.startChat({
-    history,
-  });
-
-  const result = await chat.sendMessage(userMessage);
-  return result.response.text();
+function assertApiKey(): void {
+  const key = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!key || key.trim() === "") {
+    throw new Error(
+      "VITE_GEMINI_API_KEY tidak ditemukan. Pastikan environment variable sudah diatur di Vercel dan file .env lokal."
+    );
+  }
 }
 
+// ─── Main API Functions ───────────────────────────────────────────────────────
+
+/**
+ * streamGemini — Primary function used by AiAgentPanel.
+ * Streams response chunks for real-time display in the chat UI.
+ */
 export async function* streamGemini(
   userMessage: string,
   features: Feature[],
@@ -148,41 +264,69 @@ export async function* streamGemini(
   mode: AgentMode = "qa",
   chatHistory: ChatMessage[] = []
 ): AsyncGenerator<string> {
-  const context = buildFeatureContext(features, types);
-  const modeInstructions = MODE_SYSTEM_PROMPTS[mode];
-  const systemInstruction = `${context}\n\nCurrent mode: ${mode}. ${modeInstructions}`;
+  assertApiKey();
+
+  const systemInstruction = buildSystemInstruction(features, types, mode);
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
+    model: GEMINI_MODEL,
     systemInstruction,
   });
 
-  const history = buildChatHistory(chatHistory);
+  const history = buildChatHistory(
+    // Exclude the very last assistant placeholder (empty) from history
+    chatHistory.filter((m) => !(m.role === "assistant" && !m.content))
+  );
 
-  const chat = model.startChat({
-    history,
-  });
-
+  const chat = model.startChat({ history });
   const result = await chat.sendMessageStream(userMessage);
+
   for await (const chunk of result.stream) {
     yield chunk.text();
   }
 }
 
+/**
+ * askGemini — Non-streaming version, used for one-shot queries.
+ */
+export async function askGemini(
+  userMessage: string,
+  features: Feature[],
+  types: TypesState | undefined,
+  mode: AgentMode = "qa",
+  chatHistory: ChatMessage[] = []
+): Promise<string> {
+  assertApiKey();
+
+  const systemInstruction = buildSystemInstruction(features, types, mode);
+
+  const model = genAI.getGenerativeModel({
+    model: GEMINI_MODEL,
+    systemInstruction,
+  });
+
+  const history = buildChatHistory(chatHistory);
+  const chat = model.startChat({ history });
+  const result = await chat.sendMessage(userMessage);
+  return result.response.text();
+}
+
 // ─── Quick Actions ────────────────────────────────────────────────────────────
 
-export async function generateStatusReport(features: Feature[]): Promise<string> {
+export async function generateStatusReport(features: Feature[], types?: TypesState): Promise<string> {
   return askGemini(
-    "Generate a complete status report of all features right now.",
+    "Buatkan laporan status lengkap dari semua fitur yang ada saat ini dalam format markdown.",
     features,
+    types,
     "report"
   );
 }
 
-export async function summarizeDashboard(features: Feature[]): Promise<string> {
+export async function summarizeDashboard(features: Feature[], types?: TypesState): Promise<string> {
   return askGemini(
-    "Give me an executive summary of the current state of our product features.",
+    "Berikan ringkasan eksekutif dari kondisi tracker fitur produk kami saat ini.",
     features,
+    types,
     "summarize"
   );
 }
