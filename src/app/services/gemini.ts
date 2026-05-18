@@ -97,17 +97,20 @@ export async function askGemini(
   mode: AgentMode = "qa",
   chatHistory: ChatMessage[] = []
 ): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
   const context = buildFeatureContext(features);
   const modeInstructions = MODE_SYSTEM_PROMPTS[mode];
+  const systemInstruction = `${context}\n\nCurrent mode: ${mode}. ${modeInstructions}`;
+
+  const model = genAI.getGenerativeModel({
+    model: "gemini-1.5-flash",
+    systemInstruction,
+  });
 
   // Build history for multi-turn conversation (must start with 'user')
   const history = buildChatHistory(chatHistory);
 
   const chat = model.startChat({
     history,
-    systemInstruction: `${context}\n\nCurrent mode: ${mode}. ${modeInstructions}`,
   });
 
   const result = await chat.sendMessage(userMessage);
@@ -120,16 +123,19 @@ export async function* streamGemini(
   mode: AgentMode = "qa",
   chatHistory: ChatMessage[] = []
 ): AsyncGenerator<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
   const context = buildFeatureContext(features);
   const modeInstructions = MODE_SYSTEM_PROMPTS[mode];
+  const systemInstruction = `${context}\n\nCurrent mode: ${mode}. ${modeInstructions}`;
+
+  const model = genAI.getGenerativeModel({
+    model: "gemini-1.5-flash",
+    systemInstruction,
+  });
 
   const history = buildChatHistory(chatHistory);
 
   const chat = model.startChat({
     history,
-    systemInstruction: `${context}\n\nCurrent mode: ${mode}. ${modeInstructions}`,
   });
 
   const result = await chat.sendMessageStream(userMessage);
