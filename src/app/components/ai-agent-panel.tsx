@@ -392,7 +392,6 @@ function markdownToReportHtml(markdown: string) {
       sectionIndex++;
       html.push(`<section class="report-section" style="--section-index: '${String(sectionIndex).padStart(2, "0")}'">`);
       sectionOpen = true;
-      html.push('<div class="sheet-running-head"><span>Feature Design Visibility Tracker</span><span>Tepat AI</span></div>');
       html.push(`<h2><span class="section-number">${String(sectionIndex).padStart(2, "0")}</span>${formatReportInline(trimmed.slice(3))}</h2>`);
       index++;
     } else if (trimmed.startsWith("### ")) {
@@ -452,101 +451,82 @@ function markdownToReportHtml(markdown: string) {
   return html.join("\n");
 }
 
+function sanitizeReportMarkdown(markdown: string) {
+  return markdown
+    .replace(/\bTepat AI\b/gi, "Feature Tracker")
+    .replace(/^(generated|printed|dibuat|dicetak)\s+.*$/gim, "")
+    .replace(/^(analisis oleh|prepared by|created by|dibuat oleh)\s*:?.*$/gim, "")
+    .trim();
+}
+
 function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldPrint = false) {
-  const generatedAt = new Date().toLocaleString("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-  const body = markdownToReportHtml(reportMarkdown);
+  const body = markdownToReportHtml(sanitizeReportMarkdown(reportMarkdown));
 
   reportWindow.document.open();
   reportWindow.document.write(`<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Tepat AI Feature Report</title>
+    <title>Feature Design Visibility Tracker Report</title>
     <style>
-      @page { margin: 14mm; }
+      @page { margin: 12mm; }
       * { box-sizing: border-box; }
       body {
         margin: 0;
         color: #171717;
         font-family: Inter, Arial, sans-serif;
-        line-height: 1.55;
-        background: #f5f7f7;
+        line-height: 1.6;
+        background: #ffffff;
       }
       .report-page {
-        background: transparent;
         margin: 0 auto;
-        max-width: 920px;
+        max-width: 880px;
       }
       .cover {
         background:
-          linear-gradient(90deg, rgba(2,64,66,.04), rgba(255,255,255,0) 34%),
+          linear-gradient(135deg, rgba(2,116,121,.08), rgba(255,255,255,0) 42%),
           #ffffff;
         border: 1px solid #e5e5e5;
-        border-radius: 12px;
-        box-shadow: 0 12px 24px rgba(15,23,42,.08);
+        border-radius: 10px;
+        box-shadow: 0 1px 2px rgba(0,0,0,.05);
         color: #171717;
-        display: grid;
-        grid-template-columns: minmax(240px, .92fr) 1px minmax(320px, 1.08fr);
-        gap: 30px;
-        min-height: 520px;
-        margin-bottom: 26px;
-        padding: 44px 42px;
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+        margin-bottom: 18px;
+        padding: 28px 30px;
         position: relative;
-      }
-      .cover::after {
-        background: #e5e5e5;
-        bottom: 42px;
-        content: "";
-        left: calc(50% - 1px);
-        position: absolute;
-        top: 42px;
-        width: 1px;
       }
       .brand-row {
         align-items: center;
         display: flex;
-        grid-column: 1 / -1;
-        justify-content: flex-start;
-        margin-bottom: 8px;
-        position: relative;
-        z-index: 1;
+        justify-content: space-between;
       }
       .brand-lockup {
         align-items: center;
         display: flex;
-        gap: 10px;
+        gap: 12px;
       }
       .brand-logo {
         background: transparent;
-        border-radius: 8px;
         display: block;
-        height: 34px;
+        height: 30px;
         padding: 0;
-        width: 98px;
+        width: 88px;
       }
       .brand-chip {
         background: #f0fafb;
         border: 1px solid #d7eeee;
-        border-radius: 999px;
+        border-radius: 8px;
         color: #027479;
         font-size: 11px;
         font-weight: 600;
-        padding: 5px 9px;
+        padding: 5px 8px;
       }
-      .cover-left {
-        align-self: center;
-        grid-column: 1;
-        position: relative;
-        z-index: 1;
-      }
-      .cover-right {
-        align-self: center;
-        grid-column: 3;
-        position: relative;
-        z-index: 1;
+      .cover-content {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: minmax(280px, 1fr) minmax(260px, .82fr);
       }
       .eyebrow {
         color: #027479;
@@ -555,23 +535,12 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
         letter-spacing: .08em;
         margin: 0 0 12px;
         text-transform: uppercase;
-        position: relative;
-        z-index: 1;
-      }
-      .meta {
-        border-top: 1px solid #d4d4d4;
-        color: #737373;
-        font-size: 12px;
-        margin: 18px 0 0;
-        padding-top: 12px;
-        position: relative;
-        z-index: 1;
       }
       .cover-summary {
         color: #404040;
-        font-size: 13px;
+        font-size: 13.5px;
         margin: 0;
-        max-width: 38ch;
+        max-width: 52ch;
       }
       main {
         background: transparent;
@@ -579,56 +548,46 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
       }
       h1 {
         color: #171717;
-        font-size: 32px;
-        line-height: 1.12;
+        font-size: 30px;
+        line-height: 1.16;
         margin: 0;
-        max-width: 12ch;
-        position: relative;
-        z-index: 1;
+        max-width: 16ch;
       }
       h2 {
         align-items: center;
         break-after: avoid;
-        column-span: all;
         color: #171717;
         display: flex;
-        gap: 12px;
+        gap: 10px;
         font-size: 18px;
-        justify-content: center;
-        letter-spacing: .01em;
-        margin: 0 0 18px;
-        padding-bottom: 12px;
-        position: relative;
-        text-align: center;
-        text-transform: uppercase;
+        justify-content: flex-start;
+        letter-spacing: 0;
+        line-height: 1.35;
+        margin: 0 0 14px;
+        padding-bottom: 10px;
+        text-align: left;
         width: 100%;
-      }
-      h2::after {
-        background: #d4d4d4;
-        bottom: 0;
-        content: "";
-        height: 1px;
-        left: 50%;
-        position: absolute;
-        transform: translateX(-50%);
-        width: 72%;
+        border-bottom: 1px solid #e5e5e5;
       }
       .section-number {
+        background: #f0fafb;
+        border: 1px solid #d7eeee;
+        border-radius: 8px;
         color: #027479;
         font-size: 12px;
         font-weight: 700;
         letter-spacing: .08em;
+        padding: 3px 7px;
       }
       h3 {
         break-after: avoid;
         color: #027479;
-        column-span: all;
-        font-size: 14px;
-        margin: 18px 0 8px;
+        font-size: 14.5px;
+        margin: 16px 0 7px;
       }
       p, li {
         color: #404040;
-        font-size: 12.5px;
+        font-size: 12.75px;
       }
       p { margin: 0 0 9px; }
       ul, ol {
@@ -658,51 +617,16 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
       }
       .report-section {
         border: 1px solid #e5e5e5;
+        border-left: 4px solid #027479;
         background: #ffffff;
-        border-radius: 12px;
-        box-shadow: 0 12px 24px rgba(15,23,42,.08);
-        column-count: 2;
-        column-gap: 42px;
-        margin: 0 0 26px;
-        min-height: 640px;
-        padding: 28px 34px 42px;
-        page-break-inside: avoid;
-        position: relative;
-      }
-      .report-section::before {
-        background: #e5e5e5;
-        bottom: 40px;
-        content: "";
-        left: 50%;
-        position: absolute;
-        top: 78px;
-        width: 1px;
-      }
-      .report-section::after {
-        border-top: 1px solid #d4d4d4;
-        bottom: 18px;
-        color: #737373;
-        content: "Feature Design Visibility Tracker";
-        font-size: 10px;
-        left: 34px;
-        padding-top: 5px;
-        position: absolute;
-        right: 34px;
-        text-align: right;
-      }
-      .sheet-running-head {
-        border-bottom: 1px solid #171717;
-        color: #525252;
-        column-span: all;
-        display: flex;
-        font-size: 9px;
-        justify-content: space-between;
-        margin-bottom: 18px;
-        padding-bottom: 6px;
-        text-transform: uppercase;
+        border-radius: 10px;
+        box-shadow: 0 1px 2px rgba(0,0,0,.04);
+        margin: 0 0 14px;
+        padding: 22px 24px 24px;
+        page-break-inside: auto;
       }
       .report-section > p:first-of-type {
-        color: #344054;
+        color: #404040;
         margin-bottom: 12px;
       }
       .report-divider {
@@ -711,9 +635,8 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
         margin: 12px 0;
       }
       .table-wrap {
-        column-span: all;
         border: 1px solid #e5e5e5;
-        border-radius: 10px;
+        border-radius: 8px;
         box-shadow: 0 1px 2px rgba(0,0,0,0.04);
         margin: 12px 0 16px;
         overflow: hidden;
@@ -737,7 +660,7 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
       td {
         border-bottom: 1px solid #eeeeee;
         color: #404040;
-        font-size: 12px;
+        font-size: 11.75px;
         padding: 10px 11px;
         vertical-align: top;
       }
@@ -772,7 +695,7 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
       .badge-neutral::before { background: #a3a3a3; }
       @media print {
         body {
-          background: #f8fbfb;
+          background: #ffffff;
           print-color-adjust: exact;
           -webkit-print-color-adjust: exact;
         }
@@ -782,8 +705,19 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
         .cover,
         .report-section {
           box-shadow: none;
-          break-after: page;
         }
+        .cover {
+          break-after: avoid;
+        }
+        .report-section {
+          break-inside: auto;
+        }
+        h2, h3 {
+          break-after: avoid;
+        }
+      }
+      @media (max-width: 720px) {
+        .cover-content { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -794,14 +728,16 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
           <div class="brand-lockup">
             <img class="brand-logo" src="/logo.svg" alt="Tepat" />
           </div>
+          <span class="brand-chip">Product & UX Report</span>
         </div>
-        <div class="cover-left">
-          <p class="eyebrow">Feature Design Visibility Tracker</p>
-          <h1>AI Generated Product & UX Report</h1>
-        </div>
-        <div class="cover-right">
-          <p class="cover-summary">Laporan ini merangkum visibility fitur, kesiapan desain, risiko UX, proses bisnis, dan rekomendasi prioritas berdasarkan data tracker terbaru.</p>
-          <p class="meta">Generated ${escapeHtml(generatedAt)} · Save as PDF from the print dialog</p>
+        <div class="cover-content">
+          <div>
+            <p class="eyebrow">Feature Design Visibility Tracker</p>
+            <h1>Product & UX Report</h1>
+          </div>
+          <div>
+            <p class="cover-summary">Ringkasan visibility fitur, kesiapan desain, risiko UX, proses bisnis, dan rekomendasi prioritas berdasarkan data tracker terbaru.</p>
+          </div>
         </div>
       </section>
       <main>${body}</main>
@@ -816,7 +752,7 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
 function writeReportLoadingWindow(reportWindow: Window) {
   writeReportWindow(
     reportWindow,
-    "# Generating report\n\nTepat AI sedang menyusun laporan UX, bisnis, proses, risiko, dan rekomendasi. Window ini akan berubah menjadi PDF-ready report setelah selesai."
+    "# Menyiapkan laporan\n\nLaporan UX, bisnis, proses, risiko, dan rekomendasi sedang disusun. Jendela ini akan diperbarui otomatis saat laporan siap."
   );
 }
 
@@ -1021,7 +957,7 @@ export function AiAgentPanel({
     }
 
     const prompt =
-      "Generate laporan PDF-ready yang mendalam untuk Feature Design Visibility Tracker. Format dalam markdown yang rapi. Sertakan Executive Summary, metrik utama, review fitur Released, analisis UX mendalam dengan cara berpikir UX senior, analisis business process dan potential business blocker, risiko operasional, gap evidence termasuk gambar UI/userflow jika tersedia, rekomendasi prioritas, dan metric yang harus dipantau. Jangan tulis byline seperti Analisis Oleh atau Prepared by. Jangan menyebut persona seperti saya praktisi UX; langsung berikan insight dan rekomendasi.";
+      "Generate laporan PDF-ready yang mendalam untuk Feature Design Visibility Tracker. Format dalam markdown yang rapi. Sertakan Executive Summary, metrik utama, review fitur Released, analisis UX mendalam dengan cara berpikir UX senior, analisis business process dan potential business blocker, risiko operasional, gap evidence termasuk gambar UI/userflow jika tersedia, rekomendasi prioritas, dan metric yang harus dipantau. Jangan tulis byline seperti Analisis Oleh atau Prepared by. Jangan tulis metadata seperti generated, printed, tanggal cetak, atau instruksi print. Jangan menyebut nama asisten, Tepat AI, atau persona seperti saya praktisi UX; langsung berikan insight dan rekomendasi.";
 
     const userMsg: ChatMessage = {
       id: `u-report-${Date.now()}`,
