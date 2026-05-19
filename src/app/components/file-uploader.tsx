@@ -16,17 +16,28 @@ export function FileUploader({
   const [progress, setProgress] = useState(0);
   const [fileInfo, setFileInfo] = useState<{ name: string; size: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const activeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (activeIntervalRef.current) clearInterval(activeIntervalRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!value) {
       setState("idle");
       setProgress(0);
       setFileInfo(null);
-    } else if (state === "idle") {
+    } else if (state === "idle" || state === "error") {
       setState("complete");
       setProgress(100);
-      if (!fileInfo) setFileInfo({ name: "Uploaded Image", size: 1024 * 200 }); // Dummy info for pre-existing value
+      if (!fileInfo) setFileInfo({ name: "Uploaded Image", size: 1024 * 200 });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   const handleFile = (file: File) => {
@@ -38,14 +49,20 @@ export function FileUploader({
     // Simulate upload progress
     let currentProgress = 0;
     const interval = setInterval(() => {
+      if (!isMountedRef.current) {
+        clearInterval(interval);
+        return;
+      }
       currentProgress += Math.floor(Math.random() * 15) + 10;
       if (currentProgress >= 100) {
         currentProgress = 100;
         clearInterval(interval);
+        activeIntervalRef.current = null;
         
         // Read file as data URL when complete
         const reader = new FileReader();
         reader.onload = (ev) => {
+          if (!isMountedRef.current) return;
           setState("complete");
           setProgress(100);
           onChange(ev.target?.result as string);
@@ -54,6 +71,9 @@ export function FileUploader({
       }
       setProgress(currentProgress);
     }, 200);
+
+    // Store interval ref so onClear can cancel it
+    activeIntervalRef.current = interval;
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -117,7 +137,10 @@ export function FileUploader({
                   )}
                 </div>
               </div>
-              <button onClick={onClear} className="text-[#a3a3a3] hover:text-[#525252] transition-colors p-1" title="Remove file">
+      <button onClick={() => {
+        if (activeIntervalRef.current) clearInterval(activeIntervalRef.current);
+        onClear();
+      }} className="text-[#a3a3a3] hover:text-[#525252] transition-colors p-1" title="Remove file">
                 <Trash2 size={18} />
               </button>
             </div>
