@@ -13,7 +13,7 @@ import {
   History,
   Plus,
   Trash2,
-  GripVertical,
+  FileDown,
 } from "lucide-react";
 import {
   streamGemini,
@@ -290,6 +290,186 @@ function makeWelcomeMessage(featureCount: number): ChatMessage {
   };
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function markdownToReportHtml(markdown: string) {
+  const lines = markdown.split("\n");
+  const html: string[] = [];
+  let listType: "ul" | "ol" | null = null;
+
+  const closeList = () => {
+    if (!listType) return;
+    html.push(`</${listType}>`);
+    listType = null;
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      closeList();
+      continue;
+    }
+
+    if (trimmed.startsWith("# ")) {
+      closeList();
+      html.push(`<h1>${escapeHtml(trimmed.slice(2))}</h1>`);
+    } else if (trimmed.startsWith("## ")) {
+      closeList();
+      html.push(`<h2>${escapeHtml(trimmed.slice(3))}</h2>`);
+    } else if (trimmed.startsWith("### ")) {
+      closeList();
+      html.push(`<h3>${escapeHtml(trimmed.slice(4))}</h3>`);
+    } else if (/^\d+\.\s/.test(trimmed)) {
+      if (listType !== "ol") {
+        closeList();
+        html.push("<ol>");
+        listType = "ol";
+      }
+      html.push(`<li>${escapeHtml(trimmed.replace(/^\d+\.\s/, ""))}</li>`);
+    } else if (trimmed.startsWith("- ")) {
+      if (listType !== "ul") {
+        closeList();
+        html.push("<ul>");
+        listType = "ul";
+      }
+      html.push(`<li>${escapeHtml(trimmed.slice(2))}</li>`);
+    } else if (trimmed.startsWith("|")) {
+      closeList();
+      html.push(`<pre>${escapeHtml(trimmed)}</pre>`);
+    } else {
+      closeList();
+      html.push(`<p>${escapeHtml(trimmed)}</p>`);
+    }
+  }
+
+  closeList();
+
+  return html
+    .join("\n")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
+function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldPrint = false) {
+  const generatedAt = new Date().toLocaleString("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  const body = markdownToReportHtml(reportMarkdown);
+
+  reportWindow.document.open();
+  reportWindow.document.write(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Tepat AI Feature Report</title>
+    <style>
+      @page { margin: 18mm; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: #171717;
+        font-family: Inter, Arial, sans-serif;
+        line-height: 1.55;
+        background: #ffffff;
+      }
+      .cover {
+        border-bottom: 1px solid #d4d4d4;
+        margin-bottom: 24px;
+        padding-bottom: 18px;
+      }
+      .eyebrow {
+        color: #027479;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .08em;
+        margin: 0 0 8px;
+        text-transform: uppercase;
+      }
+      .meta {
+        color: #737373;
+        font-size: 12px;
+        margin: 6px 0 0;
+      }
+      h1 {
+        color: #171717;
+        font-size: 28px;
+        line-height: 1.2;
+        margin: 0 0 10px;
+      }
+      h2 {
+        border-top: 1px solid #e5e5e5;
+        color: #171717;
+        font-size: 18px;
+        margin: 28px 0 10px;
+        padding-top: 18px;
+      }
+      h3 {
+        color: #027479;
+        font-size: 14px;
+        margin: 18px 0 8px;
+      }
+      p, li {
+        color: #404040;
+        font-size: 12.5px;
+      }
+      p { margin: 0 0 9px; }
+      ul, ol {
+        margin: 0 0 12px 18px;
+        padding: 0;
+      }
+      li { margin: 0 0 5px; }
+      strong { color: #171717; }
+      code {
+        background: #f5f5f5;
+        border: 1px solid #e5e5e5;
+        border-radius: 4px;
+        color: #027479;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        padding: 1px 4px;
+      }
+      pre {
+        background: #fafafa;
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+        color: #404040;
+        font-size: 11px;
+        overflow-wrap: anywhere;
+        padding: 10px;
+        white-space: pre-wrap;
+      }
+      @media print {
+        body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      }
+    </style>
+  </head>
+  <body>
+    <section class="cover">
+      <p class="eyebrow">Tepat AI Report</p>
+      <h1>Feature Design Visibility Tracker</h1>
+      <p class="meta">Generated ${escapeHtml(generatedAt)} · Save as PDF from the print dialog</p>
+    </section>
+    <main>${body}</main>
+    ${shouldPrint ? "<script>window.onload = () => setTimeout(() => window.print(), 250);</script>" : ""}
+  </body>
+</html>`);
+  reportWindow.document.close();
+  reportWindow.focus();
+}
+
+function writeReportLoadingWindow(reportWindow: Window) {
+  writeReportWindow(
+    reportWindow,
+    "# Generating report\n\nTepat AI sedang menyusun laporan UX, bisnis, proses, risiko, dan rekomendasi. Window ini akan berubah menjadi PDF-ready report setelah selesai."
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function AiAgentPanel({
@@ -311,6 +491,7 @@ export function AiAgentPanel({
   const [isLoading, setIsLoading] = useState(false);
   const [showModeMenu, setShowModeMenu] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [isExportingReport, setIsExportingReport] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [deleteSessionTarget, setDeleteSessionTarget] = useState<ChatSession | null>(null);
@@ -481,6 +662,83 @@ export function AiAgentPanel({
     }
   };
 
+  const handleGeneratePdfReport = async () => {
+    if (isLoading || isExportingReport) return;
+
+    const reportWindow = window.open("", "_blank");
+    if (reportWindow) {
+      writeReportLoadingWindow(reportWindow);
+    }
+
+    const prompt =
+      "Generate laporan PDF-ready yang mendalam untuk Feature Design Visibility Tracker. Format dalam markdown yang rapi. Sertakan Executive Summary, metrik utama, review fitur Released, analisis UX mendalam seperti experienced UX Designer 10+ tahun, analisis business process dan potential business blocker, risiko operasional, gap evidence termasuk gambar UI/userflow jika tersedia, rekomendasi prioritas, dan metric yang harus dipantau.";
+
+    const userMsg: ChatMessage = {
+      id: `u-report-${Date.now()}`,
+      role: "user",
+      content: "Generate PDF report dari kondisi feature tracker saat ini.",
+      timestamp: new Date(),
+      mode: "report",
+    };
+
+    const assistantId = `a-report-${Date.now()}`;
+    const assistantMsg: ChatMessage = {
+      id: assistantId,
+      role: "assistant",
+      content: "",
+      timestamp: new Date(),
+      mode: "report",
+    };
+
+    const nextMessages = [...messages, userMsg, assistantMsg];
+    setMessages(nextMessages);
+    setMode("report");
+    setIsLoading(true);
+    setIsExportingReport(true);
+
+    try {
+      const stream = streamGemini(
+        prompt,
+        features,
+        types,
+        trainingEntries,
+        "report",
+        messages.slice(-10)
+      );
+      let fullText = "";
+
+      for await (const chunk of stream) {
+        fullText += chunk;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: fullText } : m))
+        );
+      }
+
+      const finalMessages = nextMessages.map((m) =>
+        m.id === assistantId ? { ...m, content: fullText } : m
+      );
+      persistSession(finalMessages);
+
+      if (reportWindow) {
+        writeReportWindow(reportWindow, fullText, true);
+        toast.success("Report siap", "Print dialog terbuka. Pilih Save as PDF.");
+      } else {
+        toast.warning("Report selesai", "Pop-up browser terblokir, tapi report sudah muncul di chat.");
+      }
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      const friendlyMessage = `⚠️ Gagal generate PDF report.\n\n**Detail Error:** \`${errMsg}\``;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === assistantId ? { ...m, content: friendlyMessage } : m))
+      );
+      reportWindow?.close();
+      toast.error("Gagal generate report", errMsg);
+    } finally {
+      setIsLoading(false);
+      setIsExportingReport(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -563,6 +821,20 @@ export function AiAgentPanel({
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={handleGeneratePdfReport}
+            disabled={isLoading || isExportingReport}
+            className="press-down flex size-8 items-center justify-center rounded-lg text-[#525252] transition-colors hover:bg-[#fafafa] hover:text-[#171717] disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ border: "1px solid #e5e5e5" }}
+            title="Generate PDF report"
+            aria-label="Generate PDF report"
+          >
+            {isExportingReport ? (
+              <Loader2 size={15} strokeWidth={1.67} className="animate-spin" />
+            ) : (
+              <FileDown size={15} strokeWidth={1.67} />
+            )}
+          </button>
           <button
             onClick={() => setShowHistory((v) => !v)}
             className={`press-down flex size-8 items-center justify-center rounded-lg transition-colors ${

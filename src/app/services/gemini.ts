@@ -45,6 +45,15 @@ export type ChatMessage = {
   mode?: AgentMode;
 };
 
+export type ImageEvidence = {
+  label: string;
+  mimeType: string;
+  data: string;
+};
+
+const MAX_IMAGE_EVIDENCE = 5;
+const MAX_IMAGE_EVIDENCE_BYTES = 500 * 1024;
+
 // ─── Mode Prompts ─────────────────────────────────────────────────────────────
 
 export const MODE_SYSTEM_PROMPTS: Record<AgentMode, string> = {
@@ -173,6 +182,7 @@ Saat user meminta analisa, evaluasi, "menurut kamu", "kenapa", "apa risikonya", 
 - **Status release & readiness**: apakah fitur sudah Released, Ready to Release, atau masih butuh follow-up.
 - **Kualitas desain**: cek designStatus, designSource, Figma availability/link, dan apakah ada mismatch/redesign.
 - **Evidence UI/userflow**: cek apakah ada screenshot existing UI, design Figma, notes comparison, dan userflow image.
+- **Analisis gambar**: jika image evidence tersedia sebagai lampiran multimodal, baca langsung screenshot/userflow tersebut untuk menilai layout, hierarchy, affordance, density, state, mismatch existing-vs-design, dan friction. Jika gambar tidak terkirim karena ukuran/limit, jelaskan keterbatasannya.
 - **Evaluasi UX mendalam**: analisa clarity, discoverability, friction, error prevention, cognitive load, accessibility risk, consistency dengan design system, trust, empty/error/loading state, dan potensi confusion di user journey. Jika screenshot/notes tidak cukup, jelaskan hipotesis UX yang perlu divalidasi.
 - **Impact bisnis**: pakai businessImpacts untuk menilai area terdampak dan prioritas high/medium/low. Jangan hanya sebut impact; jelaskan bagaimana fitur dapat mempengaruhi conversion, retention, operational efficiency, cost-to-serve, SLA, revenue leakage, compliance, atau customer trust jika relevan.
 - **Business process & blocker**: evaluasi apakah fitur berpotensi menghambat proses bisnis, handoff antar squad/PO/design/dev, SOP operasional, approval flow, fulfillment, support, finance, atau reporting. Sebut potential business blocker dan process risk yang relevan dengan module/description.
@@ -224,6 +234,7 @@ ${
 - **Format markdown** — pakai tabel untuk data komparatif, bullet untuk daftar, **bold** untuk angka kunci. Kalau jawaban singkat, paragraf biasa cukup.
 - **Kedalaman sesuai permintaan** — default tetap padat, tapi kalau user minta "detail", "analisa", "review", atau "evaluasi", jawab lebih lengkap dengan section seperti Verdict, Analisis UX, Analisis Bisnis & Proses, Risiko, Gap Evidence, Rekomendasi.
 - **Saat tidak tahu atau tidak yakin** — bilang apa adanya. Misal: "Datanya belum cukup buat menjawab itu" atau "Coba cek di tab Customize Types ya". Hindari respon kaku seperti "Maaf, informasi tersebut tidak tersedia dalam basis data saya."
+- **Saat membaca gambar** — rujuk gambar dengan label evidence-nya. Jangan mengaku melihat detail yang tidak tampak jelas; bedakan observasi visual dari inferensi.
 `.trim();
   }
 
@@ -288,6 +299,68 @@ function stripHtml(value: string | undefined): string {
   return (value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function parseDataUrl(value: string | undefined): { mimeType: string; data: string; bytes: number } | null {
+  if (!value) return null;
+  const match = value.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+
+  const data = match[2];
+  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+  const bytes = Math.floor((data.length * 3) / 4) - padding;
+  return { mimeType: match[1], data, bytes };
+}
+
+function pushImageEvidence(
+  items: ImageEvidence[],
+  label: string,
+  dataUrl: string | undefined
+) {
+  if (items.length >= MAX_IMAGE_EVIDENCE) return;
+  const parsed = parseDataUrl(dataUrl);
+  if (!parsed) return;
+  if (!parsed.mimeType.startsWith("image/")) return;
+  if (parsed.bytes > MAX_IMAGE_EVIDENCE_BYTES) return;
+
+  items.push({
+    label,
+    mimeType: parsed.mimeType,
+    data: parsed.data,
+  });
+}
+
+export function collectImageEvidence(features: Feature[]): ImageEvidence[] {
+  const items: ImageEvidence[] = [];
+
+  for (const feature of features) {
+    const featureLabel = `${feature.module || "Unknown module"} / ${feature.name || "Untitled feature"}`;
+
+    for (const screen of feature.uiScreens ?? []) {
+      pushImageEvidence(
+        items,
+        `${featureLabel} / Existing UI / ${screen.name || "Untitled screen"}`,
+        screen.existingDataUrl
+      );
+      pushImageEvidence(
+        items,
+        `${featureLabel} / Figma design / ${screen.name || "Untitled screen"}`,
+        screen.figmaDataUrl
+      );
+    }
+
+    for (const flow of feature.userflows ?? []) {
+      pushImageEvidence(
+        items,
+        `${featureLabel} / Userflow / ${flow.name || "Untitled flow"}`,
+        flow.imageUrl
+      );
+    }
+
+    if (items.length >= MAX_IMAGE_EVIDENCE) break;
+  }
+
+  return items;
+}
+
 // ─── Chat History Helper ──────────────────────────────────────────────────────
 // REASONING: Gemini API mensyaratkan history harus dimulai dari role "user".
 // Fungsi ini memfilter dan memvalidasi history sebelum dikirim.
@@ -332,6 +405,7 @@ export async function* streamGemini(
   chatHistory: ChatMessage[] = []
 ): AsyncGenerator<string> {
   const systemInstruction = buildSystemInstruction(features, types, trainingEntries, mode);
+  const imageEvidence = collectImageEvidence(features);
   const history = buildChatHistory(
     chatHistory.filter((m) => !(m.role === "assistant" && !m.content))
   );
@@ -342,7 +416,7 @@ export async function* streamGemini(
   const res = await fetch("/api/gemini/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ systemInstruction, userMessage, history }),
+    body: JSON.stringify({ systemInstruction, userMessage, history, imageEvidence }),
   });
 
   if (!res.ok || !res.body) {

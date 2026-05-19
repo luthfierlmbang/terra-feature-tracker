@@ -9,7 +9,44 @@ type Body = {
   systemInstruction: string;
   userMessage: string;
   history: { role: "user" | "model"; parts: { text: string }[] }[];
+  imageEvidence?: { label: string; mimeType: string; data: string }[];
 };
+
+type MessagePart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } };
+
+const MAX_IMAGE_EVIDENCE = 5;
+const MAX_IMAGE_EVIDENCE_BYTES = 500 * 1024;
+
+function estimateBase64Bytes(data: string) {
+  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+  return Math.floor((data.length * 3) / 4) - padding;
+}
+
+function buildMessageParts(userMessage: string, imageEvidence: Body["imageEvidence"]): MessagePart[] {
+  const parts: MessagePart[] = [{ text: userMessage }];
+  const safeImages = (imageEvidence ?? [])
+    .filter((image) => {
+      if (!image?.label || !image?.data || !image?.mimeType?.startsWith("image/")) return false;
+      return estimateBase64Bytes(image.data) <= MAX_IMAGE_EVIDENCE_BYTES;
+    })
+    .slice(0, MAX_IMAGE_EVIDENCE);
+
+  if (safeImages.length > 0) {
+    parts.push({
+      text:
+        "Image evidence terlampir untuk dianalisis secara visual. Gunakan label berikut sebagai referensi, dan bedakan observasi visual dari inferensi.",
+    });
+  }
+
+  for (const image of safeImages) {
+    parts.push({ text: `Image evidence: ${image.label}` });
+    parts.push({ inlineData: { mimeType: image.mimeType, data: image.data } });
+  }
+
+  return parts;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).end();
@@ -19,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY missing." });
 
-  const { systemInstruction, userMessage, history } = (req.body ?? {}) as Body;
+  const { systemInstruction, userMessage, history, imageEvidence } = (req.body ?? {}) as Body;
   if (!userMessage) return res.status(400).json({ error: "userMessage required." });
 
   res.setHeader("Content-Type", "text/event-stream");
@@ -32,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: GEMINI_MODEL, systemInstruction });
     const chat = model.startChat({ history: history ?? [] });
-    const result = await chat.sendMessageStream(userMessage);
+    const result = await chat.sendMessageStream(buildMessageParts(userMessage, imageEvidence) as any);
 
     for await (const chunk of result.stream) {
       const text = chunk.text();

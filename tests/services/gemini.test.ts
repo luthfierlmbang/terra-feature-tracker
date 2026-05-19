@@ -43,6 +43,7 @@ import {
   askGemini,
   buildChatHistory,
   buildSystemInstruction,
+  collectImageEvidence,
 } from "../../src/app/services/gemini";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -128,6 +129,51 @@ describe("streamGemini — transport", () => {
     expect(Array.isArray(body.history)).toBe(true);
   });
 
+  it("sends uploaded feature images as imageEvidence in body", async () => {
+    fetchMock.mockResolvedValue(mockSseResponse(["hello"]));
+
+    const gen = streamGemini(
+      "analyze screenshot",
+      [
+        {
+          id: "f-image-1",
+          module: "PRS",
+          name: "Timer Blocker PRS",
+          description: "Blocks timer interactions.",
+          squad: "Komodo",
+          poPic: "Faesol Afif",
+          featureStatus: "Released",
+          designSource: "PO / Squad",
+          designStatus: "Mismatch",
+          figmaAvailable: "Not Available",
+          actionNeeded: "Need Redesign",
+          uiScreens: [
+            {
+              id: "screen-1",
+              name: "Released UI",
+              existingDataUrl: "data:image/png;base64,aGVsbG8=",
+            },
+          ],
+          lastUpdated: "2026-05-18T00:00:00.000Z",
+        },
+      ],
+      undefined,
+      [],
+      "qa",
+      []
+    );
+    await collectGenerator(gen);
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body.imageEvidence).toHaveLength(1);
+    expect(body.imageEvidence[0]).toMatchObject({
+      label: "PRS / Timer Blocker PRS / Existing UI / Released UI",
+      mimeType: "image/png",
+      data: "aGVsbG8=",
+    });
+  });
+
   it("throws 'Not signed in.' when auth.currentUser is null", async () => {
     // Temporarily patch the auth mock's currentUser to null
     const firebase = await import("../../src/app/data/firebase");
@@ -202,6 +248,7 @@ describe("buildSystemInstruction — analysis context", () => {
     expect(prompt).toContain("Cara Menganalisis Fitur");
     expect(prompt).toContain("Untuk fitur **Released**");
     expect(prompt).toContain("experienced UX Designer");
+    expect(prompt).toContain("Analisis gambar");
     expect(prompt).toContain("Evaluasi UX mendalam");
     expect(prompt).toContain("Business process & blocker");
     expect(prompt).toContain("Analisis bisnis & proses");
@@ -214,6 +261,54 @@ describe("buildSystemInstruction — analysis context", () => {
     expect(prompt).toContain("hasExistingUi");
     expect(prompt).toContain("hasImage");
     expect(prompt).toContain("releasedWithDesignMismatch");
+  });
+});
+
+describe("collectImageEvidence", () => {
+  it("extracts uploaded UI, Figma, and userflow images as Gemini inline evidence", () => {
+    const png = "data:image/png;base64,aGVsbG8=";
+    const jpeg = "data:image/jpeg;base64,d29ybGQ=";
+
+    const evidence = collectImageEvidence([
+      {
+        id: "f-image-1",
+        module: "PRS",
+        name: "Timer Blocker PRS",
+        description: "Blocks timer interactions.",
+        squad: "Komodo",
+        poPic: "Faesol Afif",
+        featureStatus: "Released",
+        designSource: "PO / Squad",
+        designStatus: "Mismatch",
+        figmaAvailable: "Not Available",
+        actionNeeded: "Need Redesign",
+        uiScreens: [
+          {
+            id: "screen-1",
+            name: "Released UI",
+            existingDataUrl: png,
+            figmaDataUrl: jpeg,
+          },
+        ],
+        userflows: [
+          {
+            id: "flow-1",
+            name: "Timer blocking flow",
+            imageUrl: png,
+          },
+        ],
+        lastUpdated: "2026-05-18T00:00:00.000Z",
+      },
+    ]);
+
+    expect(evidence).toHaveLength(3);
+    expect(evidence[0]).toMatchObject({
+      label: "PRS / Timer Blocker PRS / Existing UI / Released UI",
+      mimeType: "image/png",
+      data: "aGVsbG8=",
+    });
+    expect(evidence[1].label).toContain("Figma design");
+    expect(evidence[2].label).toContain("Userflow");
   });
 });
 
