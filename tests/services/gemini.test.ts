@@ -42,6 +42,7 @@ import {
   streamGemini,
   askGemini,
   buildChatHistory,
+  buildSystemInstruction,
 } from "../../src/app/services/gemini";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -143,6 +144,68 @@ describe("streamGemini — transport", () => {
     } finally {
       (firebase.auth as any).currentUser = originalCurrentUser;
     }
+  });
+});
+
+describe("buildSystemInstruction — analysis context", () => {
+  it("includes released-feature analysis guidance and rich feature evidence", () => {
+    const prompt = buildSystemInstruction(
+      [
+        {
+          id: "f-release-1",
+          module: "PRS",
+          name: "Timer Blocker PRS",
+          description: "<p>Blocks timer interactions during release-sensitive flows.</p>",
+          squad: "Komodo",
+          poPic: "Faesol Afif",
+          featureStatus: "Released",
+          releaseDate: "2026-05-18",
+          designSource: "PO / Squad",
+          designStatus: "Mismatch",
+          figmaAvailable: "Not Available",
+          designerPic: "",
+          researchNeeded: "Yes",
+          uxEvaluationNeeded: "Yes",
+          actionNeeded: "Need Redesign",
+          notes: "Released without final design review.",
+          businessImpacts: [
+            {
+              id: "impact-1",
+              area: "Operational risk",
+              level: "High",
+              description: "Can reduce accidental timer changes.",
+            },
+          ],
+          uiScreens: [
+            {
+              id: "screen-1",
+              name: "Released UI",
+              existingDataUrl: "data:image/jpeg;base64,abc",
+              notes: "Existing UI differs from design direction.",
+            },
+          ],
+          userflows: [
+            {
+              id: "flow-1",
+              name: "Timer blocking flow",
+              imageUrl: "data:image/jpeg;base64,abc",
+            },
+          ],
+          lastUpdated: "2026-05-18T00:00:00.000Z",
+        },
+      ],
+      undefined,
+      [],
+      "qa"
+    );
+
+    expect(prompt).toContain("Cara Menganalisis Fitur");
+    expect(prompt).toContain("Untuk fitur **Released**");
+    expect(prompt).toContain("Operational risk");
+    expect(prompt).toContain("Released without final design review.");
+    expect(prompt).toContain("hasExistingUi");
+    expect(prompt).toContain("hasImage");
+    expect(prompt).toContain("releasedWithDesignMismatch");
   });
 });
 

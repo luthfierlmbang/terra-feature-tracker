@@ -49,13 +49,13 @@ export type ChatMessage = {
 
 export const MODE_SYSTEM_PROMPTS: Record<AgentMode, string> = {
   qa:
-    "Jawab pertanyaan user dengan natural, ngobrol seperti rekan kerja yang familiar dengan dashboard. Sandarkan jawaban pada data yang ada — kalau tidak ada datanya, ngomong saja apa adanya tanpa kaku.",
+    "Jawab pertanyaan user dengan natural seperti rekan kerja product/design analyst. Kalau user hanya minta fakta, jawab ringkas. Kalau user minta analisa, diagnosis, evaluasi fitur released, risiko, atau rekomendasi, berikan analisis mendalam yang tetap grounded ke data.",
   draft:
-    "Bantu menulis deskripsi fitur atau impact statement. Ketuk kata-kata seperti seorang Product Manager yang berpengalaman: jelas, ringkas, ada konteks bisnis.",
+    "Bantu menulis deskripsi fitur, impact statement, release note, atau narasi evaluasi. Tulis seperti Product Manager berpengalaman: jelas, tajam, ada konteks bisnis, user impact, risiko, dan next step.",
   report:
-    "Susun laporan status dalam markdown: tabel ringkasan untuk angka penting, bullet point untuk blocker dan action item. Tetap concise.",
+    "Susun laporan status dalam markdown: mulai dari executive summary, lalu tabel ringkasan, insight, risiko, blocker, dan action item. Jangan hanya daftar data; jelaskan implikasinya.",
   summarize:
-    "Berikan ringkasan eksekutif singkat dari kondisi tracker. Highlight metrik utama, progres, dan risiko — tone seperti memberi update ke leadership di stand-up.",
+    "Berikan ringkasan eksekutif dari kondisi tracker. Highlight metrik utama, pola penting, progres, risiko, kualitas evidence design/research, dan rekomendasi prioritas.",
 };
 
 // ─── System Instruction Builder ───────────────────────────────────────────────
@@ -75,18 +75,44 @@ export function buildSystemInstruction(
   // ── BRANCH A: Data tersedia ──────────────────────────────────────────────
   if (features.length > 0) {
     const featureRows = features.map((f) => ({
+      id: f.id,
       name: f.name,
       module: f.module,
       squad: f.squad || "—",
       featureStatus: f.featureStatus,
+      releaseDate: f.releaseDate || "—",
+      targetReleaseDate: f.targetReleaseDate || "—",
       designStatus: f.designStatus,
+      designSource: f.designSource,
+      figmaAvailable: f.figmaAvailable,
       actionNeeded: f.actionNeeded,
       poPic: f.poPic || "—",
       designerPic: f.designerPic || "—",
+      researchNeeded: f.researchNeeded || "—",
       researcherPic: f.researcherPic || "—",
+      uxEvaluationNeeded: f.uxEvaluationNeeded || "—",
       figmaLink: f.figmaLink ? "Tersedia" : "Belum ada",
-      targetReleaseDate: f.targetReleaseDate || "—",
-      description: f.description?.replace(/<[^>]+>/g, "").slice(0, 200) || "—",
+      description: stripHtml(f.description).slice(0, 800) || "—",
+      notes: f.notes?.slice(0, 800) || "—",
+      businessImpacts:
+        f.businessImpacts?.map((impact) => ({
+          area: impact.area || "—",
+          level: impact.level,
+          description: impact.description || "—",
+        })) || [],
+      uiEvidence:
+        f.uiScreens?.map((screen) => ({
+          name: screen.name || "Untitled screen",
+          hasExistingUi: Boolean(screen.existingDataUrl),
+          hasFigmaDesign: Boolean(screen.figmaDataUrl),
+          notes: screen.notes || "—",
+        })) || [],
+      userflowEvidence:
+        f.userflows?.map((flow) => ({
+          name: flow.name || "Untitled userflow",
+          hasImage: Boolean(flow.imageUrl),
+          notes: flow.notes || "—",
+        })) || [],
     }));
 
     // Compute quick stats untuk memperkaya jawaban tanpa user perlu bertanya
@@ -99,6 +125,16 @@ export function buildSystemInstruction(
       uniqueModules: [...new Set(features.map((f) => f.module).filter(Boolean))],
       withFigma: features.filter((f) => f.figmaLink).length,
       withoutFigma: features.filter((f) => !f.figmaLink).length,
+      released: features.filter((f) => f.featureStatus === "Released").length,
+      releasedWithDesignMismatch: features.filter(
+        (f) => f.featureStatus === "Released" && ["Mismatch", "Need Redesign", "No Design Yet"].includes(f.designStatus)
+      ).length,
+      releasedWithoutFigma: features.filter(
+        (f) => f.featureStatus === "Released" && !f.figmaLink
+      ).length,
+      needingResearchOrUx: features.filter(
+        (f) => f.researchNeeded === "Yes" || f.uxEvaluationNeeded === "Yes"
+      ).length,
     };
 
     return `
@@ -130,6 +166,21 @@ ${JSON.stringify(stats, null, 2)}
 ${JSON.stringify(featureRows, null, 2)}
 \`\`\`
 
+## Cara Menganalisis Fitur
+
+Saat user meminta analisa, evaluasi, "menurut kamu", "kenapa", "apa risikonya", atau review feature released, jangan berhenti di informasi dasar. Gunakan kerangka ini:
+
+- **Status release & readiness**: apakah fitur sudah Released, Ready to Release, atau masih butuh follow-up.
+- **Kualitas desain**: cek designStatus, designSource, Figma availability/link, dan apakah ada mismatch/redesign.
+- **Evidence UI/userflow**: cek apakah ada screenshot existing UI, design Figma, notes comparison, dan userflow image.
+- **Impact bisnis**: pakai businessImpacts untuk menilai area terdampak dan prioritas high/medium/low.
+- **Research & UX risk**: cek researchNeeded, researcherPic, uxEvaluationNeeded, dan gap datanya.
+- **Owner & accountability**: sebut PO, designer, researcher, squad/module kalau relevan.
+- **Risiko dan gap**: bedakan fakta dari inferensi. Kalau data kurang, tulis "indikasinya" atau "belum cukup evidence".
+- **Rekomendasi**: tutup dengan action item konkret yang bisa dilakukan tim.
+
+Untuk fitur **Released**, analisa harus lebih tajam: apakah release-nya sehat, apakah desain terdokumentasi, apakah ada potensi design debt, apakah perlu retro/research/UX evaluation, dan apa follow-up paling masuk akal.
+
 ${
   types
     ? `## Konfigurasi Tipe (dari Settings Dashboard)
@@ -158,10 +209,11 @@ ${
 
 - **Ngobrol natural** — bukan formal, bukan robotic. Hindari kalimat pembuka template seperti "Tentu, berikut..." atau "Baik, izinkan saya...". Langsung masuk ke poin saja, tapi tetap ramah.
 - **Sandarkan ke data** — semua angka, nama, dan status harus dari data di atas. Kalau ada user yang tanya hal yang datanya tidak ada, katakan dengan santai (mis. "Belum ada datanya nih" atau "Hmm, belum ada fitur dengan nama itu di tracker").
-- **Proaktif tapi tidak menggurui** — kalau kelihatan pola menarik (banyak Backlog, banyak tanpa Figma), boleh disinggung sambil lewat. Jangan dipaksakan tiap respon.
+- **Aktif menganalisis saat diminta** — jangan cuma menyebut PO/designer/Figma/ringkasan. Beri interpretasi, risiko, trade-off, dan next step kalau user meminta analisa/detail/evaluasi.
+- **Proaktif tapi tidak menggurui** — kalau kelihatan pola menarik (released tanpa Figma, mismatch, action needed masih tinggi, evidence UI kosong), singgung sebagai insight dan jelaskan dampaknya.
 - **Ikuti bahasa user** — Bahasa Indonesia kalau user pakai Indonesia, Inggris kalau user pakai Inggris. Boleh campur kalau user campur.
 - **Format markdown** — pakai tabel untuk data komparatif, bullet untuk daftar, **bold** untuk angka kunci. Kalau jawaban singkat, paragraf biasa cukup.
-- **Tetap ringkas** — utamakan kepadatan info. Jangan paragraf panjang kalau bisa 2 kalimat.
+- **Kedalaman sesuai permintaan** — default tetap padat, tapi kalau user minta "detail", "analisa", "review", atau "evaluasi", jawab lebih lengkap dengan section seperti Ringkasan, Analisis, Risiko, Rekomendasi.
 - **Saat tidak tahu atau tidak yakin** — bilang apa adanya. Misal: "Datanya belum cukup buat menjawab itu" atau "Coba cek di tab Customize Types ya". Hindari respon kaku seperti "Maaf, informasi tersebut tidak tersedia dalam basis data saya."
 `.trim();
   }
@@ -221,6 +273,10 @@ export function groupCount<T>(arr: T[], key: (item: T) => string | undefined): R
     },
     {} as Record<string, number>
   );
+}
+
+function stripHtml(value: string | undefined): string {
+  return (value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
 // ─── Chat History Helper ──────────────────────────────────────────────────────
