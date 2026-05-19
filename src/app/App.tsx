@@ -657,11 +657,17 @@ export default function App() {
           </div>
         </main>
 
-        {/* AI Agent Side Panel */}
-        {showAiPanel && activeNav === "dashboard" && !activeForm && !viewingFeature && (
-          <div className="flex h-full w-[380px] shrink-0 overflow-hidden rounded-xl border border-[#e5e5e5]" style={{ boxShadow: "0 1px 1px rgba(0,0,0,0.05)" }}>
-            <AiAgentPanel features={activeFeatures} types={types} trainingEntries={aiTrainingEntries} onClose={() => setShowAiPanel(false)} />
-          </div>
+        {/* AI Agent Side Panel — visible across ALL sections, except when forms are open */}
+        {showAiPanel && !activeForm && !viewingFeature && (
+          <ResizableAiPanel>
+            <AiAgentPanel
+              features={activeFeatures}
+              types={types}
+              trainingEntries={aiTrainingEntries}
+              userId={firebaseUser.uid}
+              onClose={() => setShowAiPanel(false)}
+            />
+          </ResizableAiPanel>
         )}
       </div>
 
@@ -675,6 +681,79 @@ export default function App() {
       )}
 
       <ToastProvider />
+    </div>
+  );
+}
+
+// ─── Resizable AI Panel Wrapper ──────────────────────────────────────────────
+// Wraps the AiAgentPanel with a horizontal drag handle on its left edge so
+// users can resize the panel width. Width persists in localStorage.
+
+const AI_PANEL_WIDTH_KEY = "ai_panel_width";
+const AI_PANEL_MIN = 320;
+const AI_PANEL_MAX = 720;
+
+function ResizableAiPanel({ children }: { children: React.ReactNode }) {
+  const [width, setWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return 400;
+    const stored = Number(localStorage.getItem(AI_PANEL_WIDTH_KEY));
+    if (!stored || stored < AI_PANEL_MIN || stored > AI_PANEL_MAX) return 400;
+    return stored;
+  });
+  const draggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+
+  function onMouseDown(e: React.MouseEvent) {
+    draggingRef.current = true;
+    startXRef.current = e.clientX;
+    startWidthRef.current = width;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!draggingRef.current) return;
+      const delta = startXRef.current - e.clientX; // dragging left = wider
+      const next = Math.min(
+        AI_PANEL_MAX,
+        Math.max(AI_PANEL_MIN, startWidthRef.current + delta)
+      );
+      setWidth(next);
+    }
+    function onMouseUp() {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      try {
+        localStorage.setItem(AI_PANEL_WIDTH_KEY, String(width));
+      } catch {}
+    }
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [width]);
+
+  return (
+    <div
+      className="relative flex h-full shrink-0 overflow-hidden rounded-xl border border-[#e5e5e5]"
+      style={{ width, boxShadow: "0 1px 1px rgba(0,0,0,0.05)" }}
+    >
+      {/* Drag handle on the left edge */}
+      <div
+        onMouseDown={onMouseDown}
+        className="group absolute left-0 top-0 z-10 flex h-full w-1.5 cursor-col-resize items-center justify-center hover:bg-[#02878d]/10"
+        title="Drag to resize"
+        style={{ marginLeft: -3 }}
+      >
+        <div className="h-12 w-1 rounded-full bg-transparent transition-colors group-hover:bg-[#02878d]" />
+      </div>
+      {children}
     </div>
   );
 }
@@ -736,8 +815,8 @@ function DashboardView({
             onClick={onToggleAi}
             className={`relative flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium press-down transition-all duration-200 ${
               showAiPanel
-                ? "border-[#027479] bg-[#027479] text-white shadow-[0_0_0_4px_rgba(2,116,121,0.12)]"
-                : "border-[#e5e5e5] bg-white text-[#404040] hover:border-[#027479] hover:text-[#027479] hover:shadow-[0_0_0_4px_rgba(2,116,121,0.08)]"
+                ? "border-[#02878d] bg-[#f0fafb] text-[#02878d]"
+                : "border-[#e5e5e5] bg-white text-[#404040] hover:border-[#02878d] hover:text-[#02878d] hover:shadow-[0_0_0_4px_rgba(2,116,121,0.08)]"
             }`}
             style={{ fontFamily: "Inter, sans-serif", fontSize: 13 }}
           >

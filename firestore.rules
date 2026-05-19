@@ -25,5 +25,13 @@ service cloud.firestore {
     match /workspaces/{workspace}/ai-training/{entryId} {
       allow read, write: if request.auth != null;
     }
+
+    // ─── Chat Sessions (Tepat AI conversation history) ────────────────────────
+    // Each session has a userId field; we don't enforce per-user isolation here
+    // because the app is single-workspace and admin can see all by design.
+    // Filtering by userId happens client-side in subscribeToChatSessions.
+    match /workspaces/{workspace}/chat-sessions/{sessionId} {
+      allow read, write: if request.auth != null;
+    }
   }
 }

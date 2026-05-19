@@ -333,3 +333,59 @@ export function subscribeToAiTraining(
   });
 }
 
+
+
+// ─── Chat Sessions ────────────────────────────────────────────────────────────
+
+export type StoredChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string; // ISO string for Firestore safety
+  mode?: string;
+};
+
+export type ChatSession = {
+  id: string;
+  userId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: StoredChatMessage[];
+};
+
+const chatSessionsCol = () =>
+  collection(db, "workspaces", WORKSPACE_ID, "chat-sessions");
+
+export async function saveChatSession(session: ChatSession): Promise<void> {
+  await setDoc(doc(chatSessionsCol(), session.id), session);
+}
+
+export async function deleteChatSession(sessionId: string): Promise<void> {
+  await deleteDoc(doc(chatSessionsCol(), sessionId));
+}
+
+export function subscribeToChatSessions(
+  userId: string,
+  callback: (sessions: ChatSession[]) => void
+): () => void {
+  return onSnapshot(chatSessionsCol(), (snap) => {
+    const all = snap.docs.map((d) => d.data() as ChatSession);
+    // Filter client-side to avoid needing a Firestore composite index
+    const mine = all
+      .filter((s) => s.userId === userId)
+      .sort((a, b) => (a.updatedAt > b.updatedAt ? -1 : 1));
+    callback(mine);
+  });
+}
+
+/**
+ * Auto-derive a chat session title from its first user message.
+ * Falls back to "New chat" for empty sessions.
+ */
+export function deriveChatTitle(messages: StoredChatMessage[]): string {
+  const firstUserMsg = messages.find((m) => m.role === "user" && m.content.trim());
+  if (!firstUserMsg) return "New chat";
+  const text = firstUserMsg.content.trim().replace(/\s+/g, " ");
+  return text.length > 50 ? text.slice(0, 47) + "..." : text;
+}
