@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { CloudUpload, File as FileIcon, Trash2, XCircle, CheckCircle2 } from "lucide-react";
+import { CloudUpload, File as FileIcon, Trash2, XCircle, CheckCircle2, Eye, X } from "lucide-react";
 
 type UploadState = "idle" | "uploading" | "error" | "complete";
 
@@ -15,6 +15,7 @@ export function FileUploader({
   const [state, setState] = useState<UploadState>(value ? "complete" : "idle");
   const [progress, setProgress] = useState(0);
   const [fileInfo, setFileInfo] = useState<{ name: string; size: number } | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
@@ -102,6 +103,7 @@ export function FileUploader({
     setState("idle");
     setProgress(0);
     setFileInfo(null);
+    setShowPreview(false);
     onClear();
   };
 
@@ -112,43 +114,91 @@ export function FileUploader({
     const fileName = fileInfo?.name || "Uploaded image";
     const fileSize = fileInfo?.size ? formatSize(fileInfo.size) : null;
 
-    if (isComplete && value) {
+    if (isComplete) {
       return (
-        <div className="overflow-hidden rounded-xl border border-[#e5e5e5] bg-white shadow-sm">
-          <div className="relative flex h-40 items-center justify-center bg-[#fafafa] p-2">
-            <img src={value} alt="Uploaded preview" className="max-h-full max-w-full rounded-lg object-contain" />
-          </div>
-          <div className="flex items-center justify-between gap-3 border-t border-[#e5e5e5] px-4 py-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fafb] text-[#027479]">
-                <CheckCircle2 size={18} strokeWidth={1.67} />
+        <>
+          <div className="overflow-hidden rounded-xl border border-[#e5e5e5] bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#f0fafb] text-[#027479]">
+                  <CheckCircle2 size={18} strokeWidth={1.67} />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-[#171717]">{fileName}</p>
+                  <p className="text-xs text-[#737373]">{fileSize ? `${fileSize} • Ready` : "Image ready"}</p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-[#171717]">{fileName}</p>
-                <p className="text-xs text-[#737373]">{fileSize ? `${fileSize} • Ready` : "Ready"}</p>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => value && setShowPreview(true)}
+                  disabled={!value}
+                  className="press-down flex size-8 items-center justify-center rounded-lg text-[#525252] transition-colors hover:bg-[#fafafa] hover:text-[#027479] disabled:cursor-not-allowed disabled:opacity-40"
+                  title="View image"
+                >
+                  <Eye size={16} strokeWidth={1.67} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="press-down flex size-8 items-center justify-center rounded-lg text-[#525252] transition-colors hover:bg-[#fafafa] hover:text-[#027479]"
+                  title="Replace image"
+                >
+                  <CloudUpload size={16} strokeWidth={1.67} />
+                </button>
+                <button
+                  type="button"
+                  onClick={clearFile}
+                  className="press-down flex size-8 items-center justify-center rounded-lg text-[#b42318] transition-colors hover:bg-[#fef3f2]"
+                  title="Remove image"
+                >
+                  <Trash2 size={16} strokeWidth={1.67} />
+                </button>
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
+            {value && (
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="press-down flex size-8 items-center justify-center rounded-lg text-[#525252] transition-colors hover:bg-[#fafafa] hover:text-[#027479]"
-                title="Replace image"
+                onClick={() => setShowPreview(true)}
+                className="flex h-36 w-full items-center justify-center border-t border-[#e5e5e5] bg-[#fafafa] p-2 transition-colors hover:bg-[#f5f5f5]"
+                title="View image"
               >
-                <CloudUpload size={16} strokeWidth={1.67} />
+                <img src={value} alt="Uploaded preview" className="max-h-full max-w-full rounded-lg object-contain" />
               </button>
-              <button
-                type="button"
-                onClick={clearFile}
-                className="press-down flex size-8 items-center justify-center rounded-lg text-[#b42318] transition-colors hover:bg-[#fef3f2]"
-                title="Remove image"
-              >
-                <Trash2 size={16} strokeWidth={1.67} />
-              </button>
-            </div>
+            )}
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleChange} />
           </div>
-          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleChange} />
-        </div>
+
+          {showPreview && value && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6 animate-fade-in"
+              onClick={() => setShowPreview(false)}
+            >
+              <div
+                className="relative flex max-h-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between border-b border-[#e5e5e5] px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-[#171717]">{fileName}</p>
+                    <p className="text-xs text-[#737373]">Uploaded image preview</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPreview(false)}
+                    className="press-down flex size-8 items-center justify-center rounded-lg text-[#525252] transition-colors hover:bg-[#fafafa] hover:text-[#171717]"
+                    aria-label="Close preview"
+                  >
+                    <X size={16} strokeWidth={1.67} />
+                  </button>
+                </div>
+                <div className="flex min-h-0 items-center justify-center bg-[#fafafa] p-4">
+                  <img src={value} alt="Uploaded full preview" className="max-h-[78vh] max-w-full object-contain" />
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       );
     }
 
