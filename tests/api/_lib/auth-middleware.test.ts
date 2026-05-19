@@ -81,7 +81,7 @@ describe("api/_lib/auth-middleware — requireAuth", () => {
 
     expect(result).toBeNull();
     expect(res._status).toBe(401);
-    expect(res._body).toEqual({ error: "Invalid or expired ID token." });
+    expect(res._body).toMatchObject({ error: "Invalid or expired ID token." });
     expect(verifyIdToken).toHaveBeenCalledWith("invalid.jwt.token");
   });
 

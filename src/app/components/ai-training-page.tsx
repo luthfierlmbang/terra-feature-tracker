@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   Plus,
   Trash2,
-  Edit2,
+  Edit,
   Check,
   X,
   Bot,
@@ -11,8 +11,8 @@ import {
   Users,
   Globe,
   MessageSquare,
-  ChevronRight,
   Lightbulb,
+  Loader2,
 } from "lucide-react";
 import { UiButton, Input, TextField } from "./primitives";
 import { toast } from "./toast";
@@ -27,11 +27,11 @@ import {
 // ─── Category Icon Map ────────────────────────────────────────────────────────
 
 const CATEGORY_ICONS: Record<AiTrainingCategory, React.ReactNode> = {
-  product_context: <Globe size={16} strokeWidth={1.5} />,
-  design_process: <Cpu size={16} strokeWidth={1.5} />,
-  team_convention: <Users size={16} strokeWidth={1.5} />,
-  domain_knowledge: <BookOpen size={16} strokeWidth={1.5} />,
-  qa_example: <MessageSquare size={16} strokeWidth={1.5} />,
+  product_context: <Globe size={16} strokeWidth={1.67} />,
+  design_process: <Cpu size={16} strokeWidth={1.67} />,
+  team_convention: <Users size={16} strokeWidth={1.67} />,
+  domain_knowledge: <BookOpen size={16} strokeWidth={1.67} />,
+  qa_example: <MessageSquare size={16} strokeWidth={1.67} />,
 };
 
 const CATEGORY_COLORS: Record<AiTrainingCategory, string> = {
@@ -79,7 +79,10 @@ export function AiTrainingPage({
     entries.filter((e) => e.category === cat).length;
 
   function openAdd() {
-    setForm({ ...EMPTY_FORM, category: activeCategory === "all" ? "product_context" : activeCategory });
+    setForm({
+      ...EMPTY_FORM,
+      category: activeCategory === "all" ? "product_context" : activeCategory,
+    });
     setEditingEntry(null);
     setShowForm(true);
   }
@@ -92,7 +95,11 @@ export function AiTrainingPage({
 
   async function handleSave() {
     if (!form.title.trim() || !form.content.trim()) {
-      toast({ title: "Isi semua field", description: "Title dan content wajib diisi.", type: "error" });
+      toast({
+        title: "Isi semua field",
+        description: "Title dan content wajib diisi.",
+        type: "error",
+      });
       return;
     }
     setIsSaving(true);
@@ -108,10 +115,17 @@ export function AiTrainingPage({
 
     try {
       await saveAiTrainingEntry(entry);
-      toast({ title: editingEntry ? "Entry diperbarui" : "Entry ditambahkan", description: `"${entry.title}" berhasil disimpan ke knowledge base AI.` });
+      toast({
+        title: editingEntry ? "Entry diperbarui" : "Entry ditambahkan",
+        description: `"${entry.title}" berhasil disimpan ke knowledge base AI.`,
+      });
       setShowForm(false);
     } catch (err: any) {
-      toast({ title: "Gagal menyimpan", description: err?.message || String(err), type: "error" });
+      toast({
+        title: "Gagal menyimpan",
+        description: err?.message || String(err),
+        type: "error",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -121,32 +135,52 @@ export function AiTrainingPage({
     setIsSaving(true);
     try {
       await deleteAiTrainingEntry(entry.id);
-      toast({ title: "Entry dihapus", description: `"${entry.title}" dihapus dari knowledge base.`, type: "error" });
+      toast({
+        title: "Entry dihapus",
+        description: `"${entry.title}" dihapus dari knowledge base.`,
+        type: "error",
+      });
       setDeleteConfirm(null);
     } catch (err: any) {
-      toast({ title: "Gagal menghapus", description: err?.message || String(err), type: "error" });
+      toast({
+        title: "Gagal menghapus",
+        description: err?.message || String(err),
+        type: "error",
+      });
     } finally {
       setIsSaving(false);
     }
   }
 
   return (
-    <div className="flex flex-col gap-6 px-10 py-8 h-full overflow-y-auto">
+    <div
+      className="flex h-full flex-col gap-8 overflow-y-auto px-10 py-8"
+      style={{ fontFamily: "Inter, sans-serif" }}
+    >
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <div
-              className="flex size-8 items-center justify-center rounded-lg bg-[#02878d]"
-              style={{ boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)" }}
-            >
-              <Bot size={16} strokeWidth={2} color="white" />
-            </div>
-            <h2 style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 20, color: "#171717" }}>
-              AI Training
-            </h2>
-          </div>
-          <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 14, color: "#525252" }}>
+          <h2
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 600,
+              fontSize: 24,
+              lineHeight: "32px",
+              color: "#171717",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            AI Training
+          </h2>
+          <p
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 400,
+              fontSize: 14,
+              lineHeight: "20px",
+              color: "#525252",
+            }}
+          >
             Kelola knowledge base untuk melatih Tepat AI agar lebih kontekstual dan akurat.
           </p>
         </div>
@@ -157,99 +191,142 @@ export function AiTrainingPage({
 
       {/* How it works banner */}
       <div className="flex items-start gap-3 rounded-xl border border-[#c8e6e7] bg-[#f0fafb] p-4">
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#02878d]/10 text-[#02878d] mt-0.5">
-          <Lightbulb size={16} strokeWidth={1.5} />
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#02878d]">
+          <Lightbulb size={16} strokeWidth={1.67} />
         </div>
         <div className="flex flex-col gap-1">
-          <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 13, color: "#024042" }}>
+          <p
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 600,
+              fontSize: 14,
+              lineHeight: "20px",
+              color: "#024042",
+            }}
+          >
             Cara Kerja AI Training
           </p>
-          <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 12, color: "#3d6b6d", lineHeight: "18px" }}>
-            Setiap entry yang kamu tambahkan di sini akan disuntikkan langsung ke dalam system prompt Tepat AI saat
-            memberi jawaban. Semakin banyak konteks yang kamu berikan, semakin relevan dan akurat jawabannya.
-            Gunakan kategori untuk mengorganisir pengetahuan berdasarkan jenis informasi.
+          <p
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontWeight: 400,
+              fontSize: 13,
+              lineHeight: "20px",
+              color: "#3d6b6d",
+            }}
+          >
+            Setiap entry yang kamu tambahkan di sini akan disuntikkan langsung ke dalam system
+            prompt Tepat AI saat memberi jawaban. Semakin banyak konteks yang kamu berikan,
+            semakin relevan dan akurat jawabannya. Gunakan kategori untuk mengorganisir
+            pengetahuan berdasarkan jenis informasi.
           </p>
         </div>
       </div>
 
       {/* Stats row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {AI_TRAINING_CATEGORIES.map((cat) => (
-          <button
-            key={cat.key}
-            onClick={() => setActiveCategory(cat.key)}
-            className={`flex flex-col gap-2 rounded-xl border p-3.5 text-left transition-all hover:shadow-sm ${
-              activeCategory === cat.key
-                ? "border-[#02878d] bg-[#f0fafb] shadow-sm"
-                : "border-[#e5e5e5] bg-white hover:border-[#d4d4d4]"
-            }`}
-          >
-            <div
-              className="flex size-8 items-center justify-center rounded-lg"
-              style={{
-                background: `${CATEGORY_COLORS[cat.key]}15`,
-                color: CATEGORY_COLORS[cat.key],
-              }}
+        {AI_TRAINING_CATEGORIES.map((cat) => {
+          const isActive = activeCategory === cat.key;
+          return (
+            <button
+              key={cat.key}
+              onClick={() => setActiveCategory(cat.key)}
+              className={`flex flex-col gap-3 rounded-xl border bg-white p-4 text-left transition-all hover:border-[#02878d] hover:shadow-sm ${
+                isActive ? "border-[#02878d] ring-4 ring-[#f4ebff]" : "border-[#e5e5e5]"
+              }`}
+              style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
             >
-              {CATEGORY_ICONS[cat.key]}
-            </div>
-            <div>
-              <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 18, color: "#171717" }}>
-                {categoryCount(cat.key)}
-              </p>
-              <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 11, color: "#737373", lineHeight: "16px" }}>
-                {cat.label}
-              </p>
-            </div>
-          </button>
-        ))}
+              <div
+                className="flex size-9 items-center justify-center rounded-lg"
+                style={{
+                  background: `${CATEGORY_COLORS[cat.key]}15`,
+                  color: CATEGORY_COLORS[cat.key],
+                }}
+              >
+                {CATEGORY_ICONS[cat.key]}
+              </div>
+              <div>
+                <p
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 600,
+                    fontSize: 20,
+                    lineHeight: "28px",
+                    color: "#171717",
+                  }}
+                >
+                  {categoryCount(cat.key)}
+                </p>
+                <p
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 500,
+                    fontSize: 13,
+                    lineHeight: "18px",
+                    color: "#525252",
+                  }}
+                >
+                  {cat.label}
+                </p>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {/* Category filter tabs */}
-      <div className="flex items-center gap-1 rounded-xl border border-[#e5e5e5] bg-[#fafafa] p-1 w-fit">
-        <button
+      <div className="flex items-center gap-1 overflow-x-auto rounded-lg border border-[#e5e5e5] bg-[#fafafa] p-1">
+        <CategoryTab
+          label={`Semua (${entries.length})`}
+          active={activeCategory === "all"}
           onClick={() => setActiveCategory("all")}
-          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-            activeCategory === "all"
-              ? "bg-white text-[#171717] shadow-sm border border-[#e5e5e5]"
-              : "text-[#737373] hover:text-[#404040]"
-          }`}
-          style={{ fontFamily: "Inter, sans-serif" }}
-        >
-          Semua ({entries.length})
-        </button>
+        />
         {AI_TRAINING_CATEGORIES.map((cat) => (
-          <button
+          <CategoryTab
             key={cat.key}
+            label={`${cat.label} (${categoryCount(cat.key)})`}
+            active={activeCategory === cat.key}
             onClick={() => setActiveCategory(cat.key)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-              activeCategory === cat.key
-                ? "bg-white text-[#171717] shadow-sm border border-[#e5e5e5]"
-                : "text-[#737373] hover:text-[#404040]"
-            }`}
-            style={{ fontFamily: "Inter, sans-serif" }}
-          >
-            {cat.label} ({categoryCount(cat.key)})
-          </button>
+          />
         ))}
       </div>
 
       {/* Entry list */}
       <div className="flex flex-col gap-3">
         {filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[#d4d4d4] py-16">
-            <div className="flex size-12 items-center justify-center rounded-full bg-[#f5f5f5] text-[#a3a3a3]">
-              <BookOpen size={22} strokeWidth={1.5} />
+          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[#d4d4d4] bg-white py-16">
+            <div className="flex size-12 items-center justify-center rounded-full bg-[#fafafa] text-[#a3a3a3]">
+              <BookOpen size={22} strokeWidth={1.67} />
             </div>
-            <div className="text-center">
-              <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 14, color: "#404040" }}>
+            <div className="flex flex-col items-center gap-1 text-center">
+              <p
+                style={{
+                  fontFamily: "Inter, sans-serif",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  lineHeight: "20px",
+                  color: "#171717",
+                }}
+              >
                 Belum ada knowledge entry
               </p>
-              <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 13, color: "#737373" }}>
+              <p
+                style={{
+                  fontFamily: "Inter, sans-serif",
+                  fontWeight: 400,
+                  fontSize: 13,
+                  lineHeight: "18px",
+                  color: "#737373",
+                }}
+              >
                 Tambahkan konteks agar Tepat AI bisa menjawab lebih akurat.
               </p>
             </div>
-            <UiButton variant="secondary" leadingIcon={<Plus size={14} strokeWidth={2} />} onClick={openAdd}>
+            <UiButton
+              variant="secondary"
+              leadingIcon={<Plus size={14} strokeWidth={2} />}
+              onClick={openAdd}
+            >
               Add Knowledge
             </UiButton>
           </div>
@@ -261,54 +338,89 @@ export function AiTrainingPage({
           return (
             <div
               key={entry.id}
-              className="group flex items-start gap-4 rounded-xl border border-[#e5e5e5] bg-white p-4 transition-all hover:border-[#d4d4d4] hover:shadow-sm"
+              className="group flex items-start gap-4 rounded-xl border border-[#e5e5e5] bg-white p-5 transition-all hover:border-[#d4d4d4] hover:shadow-sm"
+              style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
             >
               <div
-                className="flex size-8 shrink-0 items-center justify-center rounded-lg mt-0.5"
-                style={{ background: `${color}12`, color }}
+                className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg"
+                style={{ background: `${color}15`, color }}
               >
                 {CATEGORY_ICONS[entry.category]}
               </div>
 
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                <div className="flex items-center gap-2">
-                  <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 14, color: "#171717" }}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      fontWeight: 600,
+                      fontSize: 14,
+                      lineHeight: "20px",
+                      color: "#171717",
+                    }}
+                  >
                     {entry.title}
                   </p>
                   <span
-                    className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-                    style={{ background: `${color}15`, color }}
+                    className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5"
+                    style={{
+                      background: `${color}15`,
+                      color,
+                      fontFamily: "Inter, sans-serif",
+                      fontWeight: 500,
+                      fontSize: 11,
+                      lineHeight: "16px",
+                    }}
                   >
                     {cat?.label}
                   </span>
                 </div>
                 <p
-                  className="line-clamp-2 text-xs text-[#737373] leading-relaxed"
-                  style={{ fontFamily: "Inter, sans-serif" }}
+                  className="line-clamp-2"
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 400,
+                    fontSize: 13,
+                    lineHeight: "20px",
+                    color: "#525252",
+                  }}
                 >
                   {entry.content}
                 </p>
-                <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11, color: "#a3a3a3" }}>
-                  Diperbarui {new Date(entry.updatedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                <p
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 400,
+                    fontSize: 12,
+                    lineHeight: "16px",
+                    color: "#a3a3a3",
+                  }}
+                >
+                  Diperbarui{" "}
+                  {new Date(entry.updatedAt).toLocaleDateString("id-ID", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
                 </p>
               </div>
 
-              <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                 <button
                   onClick={() => openEdit(entry)}
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-[#525252] hover:bg-[#f3f4f6] transition-colors"
-                  style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 12 }}
+                  className="flex size-8 items-center justify-center rounded-lg text-[#525252] transition-colors hover:bg-[#fafafa] hover:text-[#171717]"
+                  style={{ border: "1px solid #e5e5e5" }}
+                  title="Edit"
                 >
-                  <Edit2 size={13} strokeWidth={1.67} />
-                  Edit
+                  <Edit size={14} strokeWidth={1.67} />
                 </button>
                 <button
                   onClick={() => setDeleteConfirm(entry)}
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-[#b42318] hover:bg-[#fef3f2] transition-colors"
-                  style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 12 }}
+                  className="flex size-8 items-center justify-center rounded-lg text-[#b42318] transition-colors hover:bg-[#fef3f2]"
+                  style={{ border: "1px solid #e5e5e5" }}
+                  title="Delete"
                 >
-                  <Trash2 size={13} strokeWidth={1.67} />
-                  Remove
+                  <Trash2 size={14} strokeWidth={1.67} />
                 </button>
               </div>
             </div>
@@ -322,40 +434,75 @@ export function AiTrainingPage({
           className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
           style={{ background: "rgba(15,15,20,0.5)" }}
         >
-          <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl animate-slide-up-fade">
+          <div
+            className="w-full max-w-xl overflow-hidden rounded-xl bg-white animate-slide-up-fade"
+            style={{
+              boxShadow:
+                "0 20px 24px -4px rgba(16,24,40,0.08), 0 8px 8px -4px rgba(16,24,40,0.03)",
+            }}
+          >
             {/* Modal header */}
             <div className="flex items-center justify-between border-b border-[#e5e5e5] px-6 py-5">
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-3">
                 <div
-                  className="flex size-8 items-center justify-center rounded-lg bg-[#02878d]"
-                  style={{ boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.12)" }}
+                  className="flex size-9 items-center justify-center rounded-lg"
+                  style={{
+                    background: "#02878d",
+                    boxShadow:
+                      "inset 0 0 0 1px rgba(0,0,0,0.18), inset 0 -2px 0 0 rgba(0,0,0,0.05)",
+                  }}
                 >
-                  <Bot size={15} strokeWidth={2} color="white" />
+                  <Bot size={16} strokeWidth={2} color="#ffffff" />
                 </div>
-                <div>
-                  <h3 style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 16, color: "#171717" }}>
+                <div className="flex flex-col gap-0.5">
+                  <h3
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      fontWeight: 600,
+                      fontSize: 18,
+                      lineHeight: "28px",
+                      color: "#171717",
+                    }}
+                  >
                     {editingEntry ? "Edit Knowledge Entry" : "Tambah Knowledge Entry"}
                   </h3>
-                  <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 12, color: "#737373" }}>
+                  <p
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      fontWeight: 400,
+                      fontSize: 13,
+                      lineHeight: "18px",
+                      color: "#737373",
+                    }}
+                  >
                     Informasi ini akan disuntikkan ke Tepat AI
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowForm(false)}
-                className="rounded-md p-1.5 text-[#737373] hover:bg-[#f5f5f5] transition-colors"
+                className="flex size-8 items-center justify-center rounded-lg text-[#525252] transition-colors hover:bg-[#fafafa] hover:text-[#171717]"
+                style={{ border: "1px solid #e5e5e5" }}
               >
-                <X size={18} strokeWidth={1.5} />
+                <X size={16} strokeWidth={1.67} />
               </button>
             </div>
 
             {/* Modal body */}
-            <div className="flex flex-col gap-4 p-6">
+            <div className="flex flex-col gap-5 p-6">
               {/* Category */}
-              <div className="flex flex-col gap-1.5">
-                <label style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 13, color: "#374151" }}>
-                  Kategori <span className="text-red-500">*</span>
-                </label>
+              <div className="flex flex-col gap-2">
+                <span
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 500,
+                    fontSize: 14,
+                    lineHeight: "20px",
+                    color: "#344054",
+                  }}
+                >
+                  Kategori <span style={{ color: "#d92d20" }}>*</span>
+                </span>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {AI_TRAINING_CATEGORIES.map((cat) => {
                     const color = CATEGORY_COLORS[cat.key];
@@ -363,12 +510,14 @@ export function AiTrainingPage({
                     return (
                       <button
                         key={cat.key}
+                        type="button"
                         onClick={() => setForm((f) => ({ ...f, category: cat.key }))}
-                        className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-all ${
+                        className={`flex items-center gap-2 rounded-lg border bg-white px-3 py-2.5 text-left transition-all ${
                           isSelected
-                            ? "border-[#02878d] bg-[#f0fafb]"
-                            : "border-[#e5e5e5] hover:border-[#d4d4d4] hover:bg-[#fafafa]"
+                            ? "border-[#02878d] ring-4 ring-[#f4ebff]"
+                            : "border-[#d4d4d4] hover:border-[#a3a3a3]"
                         }`}
+                        style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
                       >
                         <span style={{ color: isSelected ? "#02878d" : color }}>
                           {CATEGORY_ICONS[cat.key]}
@@ -376,19 +525,34 @@ export function AiTrainingPage({
                         <span
                           style={{
                             fontFamily: "Inter, sans-serif",
-                            fontWeight: isSelected ? 600 : 400,
-                            fontSize: 12,
+                            fontWeight: isSelected ? 600 : 500,
+                            fontSize: 13,
+                            lineHeight: "18px",
                             color: isSelected ? "#02878d" : "#404040",
                           }}
                         >
                           {cat.label}
                         </span>
-                        {isSelected && <Check size={12} strokeWidth={2.5} className="ml-auto text-[#02878d]" />}
+                        {isSelected && (
+                          <Check
+                            size={14}
+                            strokeWidth={2.5}
+                            className="ml-auto text-[#02878d]"
+                          />
+                        )}
                       </button>
                     );
                   })}
                 </div>
-                <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11, color: "#737373" }}>
+                <p
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 400,
+                    fontSize: 12,
+                    lineHeight: "18px",
+                    color: "#737373",
+                  }}
+                >
                   {AI_TRAINING_CATEGORIES.find((c) => c.key === form.category)?.description}
                 </p>
               </div>
@@ -404,38 +568,86 @@ export function AiTrainingPage({
 
               {/* Content */}
               <div className="flex flex-col gap-1.5">
-                <label style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 13, color: "#374151" }}>
-                  Konten <span className="text-red-500">*</span>
-                </label>
+                <span
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 500,
+                    fontSize: 14,
+                    lineHeight: "20px",
+                    color: "#344054",
+                  }}
+                >
+                  Konten <span style={{ color: "#d92d20" }}>*</span>
+                </span>
                 <textarea
                   value={form.content}
                   onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
                   placeholder="Tulis pengetahuan yang ingin kamu ajarkan kepada Tepat AI..."
                   rows={6}
-                  className="w-full resize-none rounded-lg border border-[#d4d4d4] px-3.5 py-2.5 text-[13px] text-[#171717] placeholder:text-[#a3a3a3] focus:border-[#02878d] focus:outline-none focus:ring-4 focus:ring-[#02878d]/10 leading-relaxed"
-                  style={{ fontFamily: "Inter, sans-serif" }}
+                  className="w-full resize-none rounded-lg border border-[#d4d4d4] bg-white px-3 py-2.5 outline-none placeholder:text-[#737373] focus:border-[#02878d] focus:ring-4 focus:ring-[#f4ebff]"
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 400,
+                    fontSize: 14,
+                    lineHeight: "20px",
+                    color: "#171717",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                  }}
                 />
-                <div className="flex items-start gap-1.5 rounded-lg bg-[#fafafa] border border-[#e5e5e5] p-2.5">
-                  <Lightbulb size={13} strokeWidth={1.5} className="text-[#02878d] mt-0.5 shrink-0" />
-                  <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11, color: "#525252", lineHeight: "16px" }}>
-                    Tulis dengan jelas dan spesifik. Semakin detail konteksnya, semakin akurat AI dalam memahami situasi timmu.
-                    Markdown didukung.
+                <div className="flex items-start gap-2 rounded-lg border border-[#e5e5e5] bg-[#fafafa] p-3">
+                  <Lightbulb
+                    size={14}
+                    strokeWidth={1.67}
+                    className="mt-0.5 shrink-0 text-[#02878d]"
+                  />
+                  <p
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      fontWeight: 400,
+                      fontSize: 12,
+                      lineHeight: "18px",
+                      color: "#525252",
+                    }}
+                  >
+                    Tulis dengan jelas dan spesifik. Semakin detail konteksnya, semakin akurat
+                    AI dalam memahami situasi timmu. Markdown didukung.
                   </p>
                 </div>
               </div>
             </div>
 
             {/* Modal footer */}
-            <div className="flex items-center justify-between border-t border-[#e5e5e5] px-6 py-4">
-              <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 11, color: "#a3a3a3" }}>
+            <div className="flex items-center justify-between gap-3 border-t border-[#e5e5e5] bg-[#fafafa] px-6 py-4">
+              <p
+                style={{
+                  fontFamily: "Inter, sans-serif",
+                  fontWeight: 400,
+                  fontSize: 12,
+                  lineHeight: "16px",
+                  color: "#a3a3a3",
+                }}
+              >
                 Perubahan aktif saat obrolan berikutnya
               </p>
               <div className="flex items-center gap-2">
-                <UiButton variant="secondary" onClick={() => setShowForm(false)} disabled={isSaving}>
+                <UiButton
+                  variant="secondary"
+                  onClick={() => setShowForm(false)}
+                  disabled={isSaving}
+                >
                   Batal
                 </UiButton>
                 <UiButton variant="primary" onClick={handleSave} disabled={isSaving}>
-                  {isSaving ? "Menyimpan..." : editingEntry ? "Simpan Perubahan" : "Tambahkan"}
+                  {isSaving ? (
+                    <>
+                      <Loader2 size={14} strokeWidth={2} className="animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : editingEntry ? (
+                    "Simpan Perubahan"
+                  ) : (
+                    "Tambahkan"
+                  )}
                 </UiButton>
               </div>
             </div>
@@ -449,7 +661,13 @@ export function AiTrainingPage({
           className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
           style={{ background: "rgba(15,15,20,0.5)" }}
         >
-          <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl animate-slide-up-fade">
+          <div
+            className="w-full max-w-[400px] overflow-hidden rounded-xl bg-white animate-slide-up-fade"
+            style={{
+              boxShadow:
+                "0 20px 24px -4px rgba(16,24,40,0.08), 0 8px 8px -4px rgba(16,24,40,0.03)",
+            }}
+          >
             <div className="flex flex-col gap-4 p-6">
               <div
                 className="flex size-12 items-center justify-center rounded-full bg-[#fef3f2]"
@@ -458,25 +676,95 @@ export function AiTrainingPage({
                 <Trash2 size={22} strokeWidth={1.67} color="#d92d20" />
               </div>
               <div className="flex flex-col gap-1">
-                <h3 style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 18, color: "#171717" }}>
+                <h3
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 600,
+                    fontSize: 18,
+                    lineHeight: "28px",
+                    color: "#171717",
+                  }}
+                >
                   Hapus knowledge entry?
                 </h3>
-                <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 14, color: "#525252" }}>
-                  <span style={{ fontWeight: 500, color: "#171717" }}>"{deleteConfirm.title}"</span> akan dihapus permanen dari knowledge base AI.
+                <p
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontWeight: 400,
+                    fontSize: 14,
+                    lineHeight: "20px",
+                    color: "#525252",
+                  }}
+                >
+                  <span style={{ fontWeight: 500, color: "#171717" }}>
+                    "{deleteConfirm.title}"
+                  </span>{" "}
+                  akan dihapus permanen dari knowledge base AI.
                 </p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 px-6 pb-6">
-              <UiButton variant="secondary" fullWidth onClick={() => setDeleteConfirm(null)} disabled={isSaving}>
+              <UiButton
+                variant="secondary"
+                fullWidth
+                onClick={() => setDeleteConfirm(null)}
+                disabled={isSaving}
+              >
                 Batal
               </UiButton>
-              <UiButton variant="danger" fullWidth onClick={() => handleDelete(deleteConfirm)} disabled={isSaving}>
-                {isSaving ? "Menghapus..." : "Hapus"}
+              <UiButton
+                variant="danger"
+                fullWidth
+                onClick={() => handleDelete(deleteConfirm)}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 size={14} strokeWidth={2} className="animate-spin" />
+                    Menghapus...
+                  </>
+                ) : (
+                  "Hapus"
+                )}
               </UiButton>
             </div>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Helper ───────────────────────────────────────────────────────────────────
+
+function CategoryTab({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 rounded-md px-3 py-1.5 transition-all ${
+        active
+          ? "bg-white text-[#171717]"
+          : "text-[#525252] hover:text-[#171717]"
+      }`}
+      style={{
+        fontFamily: "Inter, sans-serif",
+        fontWeight: active ? 600 : 500,
+        fontSize: 13,
+        lineHeight: "18px",
+        boxShadow: active
+          ? "inset 0 0 0 1px #e5e5e5, 0 1px 2px rgba(0,0,0,0.05)"
+          : undefined,
+      }}
+    >
+      {label}
+    </button>
   );
 }
