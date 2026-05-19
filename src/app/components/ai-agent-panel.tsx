@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { toast } from "./toast";
 import {
   Bot,
   Send,
@@ -400,7 +401,10 @@ export function AiAgentPanel({
         updatedAt: now,
         messages: stored,
       };
-      saveChatSession(session).catch((e) => console.error("Save session failed:", e));
+      saveChatSession(session).catch((e) => {
+        console.error("Save session failed:", e);
+        toast.error("Gagal menyimpan chat", "Pesan mungkin tidak tersimpan.");
+      });
       if (!activeSessionId) setActiveSessionId(sessionId);
     }, 800);
   }
@@ -503,13 +507,16 @@ export function AiAgentPanel({
   }
 
   async function handleDeleteSession(session: ChatSession) {
+    const loadingId = toast.loading("Menghapus chat...");
     try {
       await deleteChatSession(session.id);
       if (activeSessionId === session.id) {
         handleNewChat();
       }
       setDeleteSessionTarget(null);
-    } catch (e) {
+      toast.resolve(loadingId, "Chat dihapus", `"${session.title}" telah dihapus dari history.`);
+    } catch (e: any) {
+      toast.reject(loadingId, "Gagal menghapus", e?.message || "Coba lagi.");
       console.error("Delete session failed:", e);
     }
   }
