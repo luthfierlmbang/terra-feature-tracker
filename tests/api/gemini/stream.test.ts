@@ -226,7 +226,7 @@ describe("api/gemini/stream — handler", () => {
 
     // SDK should have been called with the right model
     expect(getGenerativeModel).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "gemini-2.5-flash-lite" })
+      expect.objectContaining({ model: "gemini-3-flash-preview" })
     );
   });
 
@@ -296,7 +296,7 @@ describe("api/gemini/stream — handler", () => {
     );
   });
 
-  it("falls back to Flash Lite when an unsupported model is provided", async () => {
+  it("uses Gemini 3 Flash Preview when an unsupported model is provided", async () => {
     async function* mockStream() {
       yield { text: () => "OK" };
     }
@@ -322,7 +322,7 @@ describe("api/gemini/stream — handler", () => {
     await handler(req, res);
 
     expect(getGenerativeModel).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "gemini-2.5-flash-lite" })
+      expect.objectContaining({ model: "gemini-3-flash-preview" })
     );
   });
 

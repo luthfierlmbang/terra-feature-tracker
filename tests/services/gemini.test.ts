@@ -127,7 +127,7 @@ describe("streamGemini — transport", () => {
     expect(body).toHaveProperty("systemInstruction");
     expect(body).toHaveProperty("userMessage", "fitur mana yang perlu design");
     expect(body).toHaveProperty("history");
-    expect(body).toHaveProperty("model", "gemini-2.5-flash-lite");
+    expect(body).toHaveProperty("model", "gemini-3-flash-preview");
     expect(Array.isArray(body.history)).toBe(true);
   });
 

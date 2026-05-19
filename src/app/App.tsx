@@ -42,7 +42,7 @@ import {
   type Feature,
   type ActionNeeded,
 } from "./data/features";
-import { DEFAULT_AI_MODEL, type AiModel } from "./services/gemini";
+import { AI_MODELS, DEFAULT_AI_MODEL, type AiModel } from "./services/gemini";
 
 const INITIAL_TYPES: TypesState = {
   featureStatus: FEATURE_STATUSES,
@@ -447,7 +447,8 @@ export default function App() {
     setAiModel(model);
     aiModelRef.current = model;
     persistConfig();
-    toast.success("AI model updated", model === "gemini-2.5-pro" ? "2.5 Pro is now active." : "2.5 Flash Lite is now active.");
+    const modelLabel = AI_MODELS.find((item) => item.value === model)?.label ?? "Selected model";
+    toast.success("AI model updated", `${modelLabel} is now active.`);
   }
 
   const hasActiveFilters =

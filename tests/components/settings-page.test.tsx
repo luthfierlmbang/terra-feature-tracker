@@ -104,12 +104,13 @@ describe("SettingsPage", () => {
       render(
         <SettingsPage
           users={makeUsers()}
-          aiModel="gemini-2.5-flash-lite"
+          aiModel="gemini-3-flash-preview"
           onAiModelChange={onAiModelChange}
         />
       );
 
       expect(screen.getByText("AI Model")).toBeInTheDocument();
+      expect(screen.getByText("3 Flash Preview")).toBeInTheDocument();
       expect(screen.getByText("2.5 Flash Lite")).toBeInTheDocument();
       expect(screen.getByText("2.5 Pro")).toBeInTheDocument();
 

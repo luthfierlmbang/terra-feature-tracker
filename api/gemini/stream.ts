@@ -3,8 +3,10 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { requireAuth } from "../_lib/auth-middleware.js";
 
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
+const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
+const FALLBACK_GEMINI_MODEL = "gemini-2.5-flash-lite";
 const ALLOWED_GEMINI_MODELS = new Set([
+  "gemini-3-flash-preview",
   "gemini-2.5-flash-lite",
   "gemini-2.5-pro",
 ]);
@@ -91,8 +93,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       result = await streamWithModel(selectedModel);
     } catch (e: any) {
       const msg = e?.message ?? String(e);
-      if (selectedModel !== DEFAULT_GEMINI_MODEL && isModelNotFoundError(msg)) {
-        result = await streamWithModel(DEFAULT_GEMINI_MODEL);
+      if (selectedModel !== FALLBACK_GEMINI_MODEL && isModelNotFoundError(msg)) {
+        result = await streamWithModel(FALLBACK_GEMINI_MODEL);
       } else {
         throw e;
       }
