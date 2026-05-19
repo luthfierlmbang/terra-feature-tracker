@@ -371,7 +371,11 @@ export function AiAgentPanel({
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 140) + "px";
+    // Match the container's vertical padding (10px each side from py-2.5).
+    // The minimum height stays at one line height (20px) so single-line text
+    // sits centered, not pushed to the bottom of an oversized textarea.
+    const next = Math.min(Math.max(el.scrollHeight, 20), 140);
+    el.style.height = next + "px";
   }, [input]);
 
   // Reactive welcome message
@@ -656,7 +660,7 @@ export function AiAgentPanel({
       {/* Input */}
       <div className="shrink-0 border-t border-[#e5e5e5] bg-white px-5 py-4">
         <div
-          className="flex items-end gap-2 rounded-lg border border-[#d4d4d4] bg-white px-3 py-2 transition-all focus-within:border-[#02878d] focus-within:ring-4 focus-within:ring-[#f4ebff]"
+          className="flex items-end gap-2 rounded-lg border border-[#d4d4d4] bg-white px-3 py-2.5 transition-all focus-within:border-[#02878d] focus-within:ring-4 focus-within:ring-[#f4ebff]"
           style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
         >
           <textarea
@@ -667,15 +671,19 @@ export function AiAgentPanel({
             placeholder={currentMode.placeholder}
             rows={1}
             disabled={isLoading}
-            className="min-w-0 flex-1 resize-none bg-transparent leading-5 placeholder:text-[#737373] focus:outline-none disabled:opacity-50"
+            className="block min-w-0 flex-1 resize-none self-center bg-transparent placeholder:text-[#737373] focus:outline-none disabled:opacity-50"
             style={{
               fontFamily: "Inter, sans-serif",
               fontWeight: 400,
               fontSize: 14,
               lineHeight: "20px",
               color: "#171717",
+              height: 20,
+              minHeight: 20,
               maxHeight: 140,
               overflowY: "auto",
+              padding: 0,
+              margin: 0,
             }}
           />
           <button
