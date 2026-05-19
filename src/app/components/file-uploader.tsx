@@ -3,6 +3,11 @@ import { CloudUpload, File as FileIcon, Trash2, XCircle, CheckCircle2, Eye, X } 
 
 type UploadState = "idle" | "uploading" | "error" | "complete";
 
+const MAX_IMAGE_WIDTH = 1600;
+const MAX_IMAGE_HEIGHT = 1200;
+const IMAGE_QUALITY = 0.82;
+const MAX_STORED_BYTES = 650 * 1024;
+
 export function FileUploader({
   value,
   onChange,
@@ -15,6 +20,7 @@ export function FileUploader({
   const [state, setState] = useState<UploadState>(value ? "complete" : "idle");
   const [progress, setProgress] = useState(0);
   const [fileInfo, setFileInfo] = useState<{ name: string; size: number } | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
   const [showPreview, setShowPreview] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -43,9 +49,16 @@ export function FileUploader({
 
   const handleFile = (file: File) => {
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setState("error");
+      setErrorMessage("Please upload an image file.");
+      return;
+    }
+
     setFileInfo({ name: file.name, size: file.size });
     setState("uploading");
     setProgress(0);
+    setErrorMessage("");
 
     // Simulate upload progress
     let currentProgress = 0;
@@ -60,15 +73,19 @@ export function FileUploader({
         clearInterval(interval);
         activeIntervalRef.current = null;
         
-        // Read file as data URL when complete
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          if (!isMountedRef.current) return;
-          setState("complete");
-          setProgress(100);
-          onChange(ev.target?.result as string);
-        };
-        reader.readAsDataURL(file);
+        prepareImageForFirestore(file)
+          .then((dataUrl) => {
+            if (!isMountedRef.current) return;
+            setState("complete");
+            setProgress(100);
+            onChange(dataUrl);
+          })
+          .catch((err) => {
+            if (!isMountedRef.current) return;
+            setState("error");
+            setProgress(0);
+            setErrorMessage(err instanceof Error ? err.message : "Failed to process image.");
+          });
       }
       setProgress(currentProgress);
     }, 200);
@@ -103,6 +120,7 @@ export function FileUploader({
     setState("idle");
     setProgress(0);
     setFileInfo(null);
+    setErrorMessage("");
     setShowPreview(false);
     onClear();
   };
@@ -256,9 +274,9 @@ export function FileUploader({
             ) : null}
 
             {isError && (
-              <button type="button" className="text-xs font-semibold text-[#b42318] text-left mt-1 hover:underline">
-                Try again
-              </button>
+              <p className="mt-1 text-left text-xs font-medium text-[#b42318]">
+                {errorMessage || "Upload failed. Try another image."}
+              </p>
             )}
           </div>
         </div>
@@ -281,9 +299,72 @@ export function FileUploader({
         <p className="text-sm text-[#525252]">
           <span className="font-semibold text-[#027479]">Click to upload</span> or drag and drop
         </p>
-        <p className="text-xs text-[#737373]">SVG, PNG, JPG or GIF (max. 800×400px)</p>
+        <p className="text-xs text-[#737373]">PNG, JPG, GIF, or SVG. Large images are optimized automatically.</p>
       </div>
       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleChange} />
     </div>
   );
+}
+
+function getDataUrlBytes(dataUrl: string) {
+  const commaIndex = dataUrl.indexOf(",");
+  const payload = commaIndex >= 0 ? dataUrl.slice(commaIndex + 1) : dataUrl;
+  return Math.ceil((payload.length * 3) / 4);
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to read image."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Failed to load image."));
+    img.src = src;
+  });
+}
+
+async function prepareImageForFirestore(file: File): Promise<string> {
+  const originalDataUrl = await readFileAsDataUrl(file);
+
+  if (file.type === "image/svg+xml") {
+    if (getDataUrlBytes(originalDataUrl) <= MAX_STORED_BYTES) return originalDataUrl;
+    throw new Error("SVG is too large. Try exporting it smaller first.");
+  }
+
+  const img = await loadImage(originalDataUrl);
+  const ratio = Math.min(
+    1,
+    MAX_IMAGE_WIDTH / img.naturalWidth,
+    MAX_IMAGE_HEIGHT / img.naturalHeight
+  );
+  const width = Math.max(1, Math.round(img.naturalWidth * ratio));
+  const height = Math.max(1, Math.round(img.naturalHeight * ratio));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Browser cannot process this image.");
+
+  ctx.drawImage(img, 0, 0, width, height);
+
+  let quality = IMAGE_QUALITY;
+  let dataUrl = canvas.toDataURL("image/jpeg", quality);
+  while (getDataUrlBytes(dataUrl) > MAX_STORED_BYTES && quality > 0.45) {
+    quality -= 0.08;
+    dataUrl = canvas.toDataURL("image/jpeg", quality);
+  }
+
+  if (getDataUrlBytes(dataUrl) > MAX_STORED_BYTES) {
+    throw new Error("Image is still too large after optimization. Try a smaller screenshot.");
+  }
+
+  return dataUrl;
 }
