@@ -80,8 +80,22 @@ export async function fetchFeatures(): Promise<Feature[]> {
   return snap.docs.map((d) => d.data() as Feature);
 }
 
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefined(item)) as T;
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, stripUndefined(v)])
+    ) as T;
+  }
+  return value;
+}
+
 export async function saveFeature(feature: Feature): Promise<void> {
-  await setDoc(doc(featuresCol(), feature.id), feature);
+  await setDoc(doc(featuresCol(), feature.id), stripUndefined(feature));
 }
 
 export async function deleteFeature(featureId: string): Promise<void> {

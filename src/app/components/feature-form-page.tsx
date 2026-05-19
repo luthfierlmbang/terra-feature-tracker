@@ -145,7 +145,11 @@ function ScreenItem({
           <FileUploader
              value={screen.existingDataUrl}
              onChange={(dataUrl) => onChange({ ...screen, existingDataUrl: dataUrl })}
-             onClear={() => onChange({ ...screen, existingDataUrl: undefined })}
+             onClear={() => {
+               const next = { ...screen };
+               delete next.existingDataUrl;
+               onChange(next);
+             }}
           />
         </div>
 
@@ -156,7 +160,11 @@ function ScreenItem({
           <FileUploader
              value={screen.figmaDataUrl}
              onChange={(dataUrl) => onChange({ ...screen, figmaDataUrl: dataUrl })}
-             onClear={() => onChange({ ...screen, figmaDataUrl: undefined })}
+             onClear={() => {
+               const next = { ...screen };
+               delete next.figmaDataUrl;
+               onChange(next);
+             }}
           />
         </div>
       </div>
@@ -337,7 +345,11 @@ function UserflowUploader({
             <FileUploader
                value={flow.imageUrl}
                onChange={(dataUrl) => updateFlow(flow.id, { ...flow, imageUrl: dataUrl })}
-               onClear={() => updateFlow(flow.id, { ...flow, imageUrl: undefined })}
+               onClear={() => {
+                 const next = { ...flow };
+                 delete next.imageUrl;
+                 updateFlow(flow.id, next);
+               }}
             />
           </div>
 
