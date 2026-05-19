@@ -291,7 +291,9 @@ export async function* streamGemini(
 
   if (!res.ok || !res.body) {
     if (res.status === 429) throw new Error("quota: 429");
-    throw new Error(`Gemini proxy failed (${res.status}).`);
+    let detail = "";
+    try { const j = await res.clone().json(); detail = j.detail || j.error || ""; } catch {}
+    throw new Error(`Gemini proxy failed (${res.status})${detail ? ": " + detail : ""}.`);
   }
 
   const reader = res.body.getReader();
