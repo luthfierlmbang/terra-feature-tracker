@@ -301,6 +301,7 @@ function escapeHtml(value: string) {
 function formatReportInline(value: string) {
   return escapeHtml(value)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[\s(])\*([^*\n]+?)\*(?=[\s).,!?:;]|$)/g, "$1<em>$2</em>")
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
@@ -347,6 +348,7 @@ function markdownToReportHtml(markdown: string) {
   const lines = markdown.split("\n");
   const html: string[] = [];
   let listType: "ul" | "ol" | null = null;
+  let sectionOpen = false;
   let index = 0;
 
   const closeList = () => {
@@ -354,21 +356,39 @@ function markdownToReportHtml(markdown: string) {
     html.push(`</${listType}>`);
     listType = null;
   };
+  const closeSection = () => {
+    closeList();
+    if (!sectionOpen) return;
+    html.push("</section>");
+    sectionOpen = false;
+  };
 
   while (index < lines.length) {
     const trimmed = lines[index].trim();
-    if (!trimmed) {
+    if (
+      !trimmed ||
+      /^(analisis oleh|prepared by|created by|dibuat oleh)\s*:?/i.test(trimmed)
+    ) {
       closeList();
       index++;
       continue;
     }
 
-    if (trimmed.startsWith("# ")) {
+    if (["---", "***", "___"].includes(trimmed)) {
       closeList();
+      html.push('<hr class="report-divider" />');
+      index++;
+      continue;
+    }
+
+    if (trimmed.startsWith("# ")) {
+      closeSection();
       html.push(`<h1>${formatReportInline(trimmed.slice(2))}</h1>`);
       index++;
     } else if (trimmed.startsWith("## ")) {
-      closeList();
+      closeSection();
+      html.push('<section class="report-section">');
+      sectionOpen = true;
       html.push(`<h2><span class="section-icon"></span>${formatReportInline(trimmed.slice(3))}</h2>`);
       index++;
     } else if (trimmed.startsWith("### ")) {
@@ -423,7 +443,7 @@ function markdownToReportHtml(markdown: string) {
     }
   }
 
-  closeList();
+  closeSection();
 
   return html.join("\n");
 }
@@ -454,7 +474,7 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
       .report-page {
         background: #ffffff;
         border: 1px solid #e5e5e5;
-        border-radius: 14px;
+        border-radius: 18px;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         margin: 0 auto;
         max-width: 920px;
@@ -524,6 +544,8 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
         z-index: 1;
       }
       main {
+        background:
+          linear-gradient(180deg, #f8fbfb 0%, #ffffff 180px);
         padding: 22px 28px 28px;
       }
       h1 {
@@ -537,15 +559,12 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
       }
       h2 {
         align-items: center;
-        border-top: 1px solid #e5e5e5;
         color: #171717;
         display: flex;
         gap: 8px;
         font-size: 18px;
-        margin: 28px 0 10px;
-        padding-top: 18px;
+        margin: 0 0 12px;
       }
-      h2:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
       .section-icon {
         background: #f0fafb;
         border: 1px solid #d7eeee;
@@ -610,6 +629,28 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
         padding: 10px;
         white-space: pre-wrap;
       }
+      .report-section {
+        background: #ffffff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        margin: 0 0 14px;
+        padding: 16px 16px 14px;
+        page-break-inside: avoid;
+      }
+      .report-section > p:first-of-type {
+        background: #f8fbfb;
+        border-left: 3px solid #027479;
+        border-radius: 8px;
+        color: #344054;
+        margin-bottom: 12px;
+        padding: 9px 10px;
+      }
+      .report-divider {
+        border: 0;
+        border-top: 1px solid #e5e5e5;
+        margin: 12px 0;
+      }
       .table-wrap {
         border: 1px solid #e5e5e5;
         border-radius: 10px;
@@ -671,14 +712,11 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
       .badge-neutral::before { background: #a3a3a3; }
       @media print {
         body {
-          background: #ffffff;
+          background: #f8fbfb;
           print-color-adjust: exact;
           -webkit-print-color-adjust: exact;
         }
         .report-page {
-          border: 0;
-          border-radius: 0;
-          box-shadow: none;
           max-width: none;
         }
       }
@@ -914,7 +952,7 @@ export function AiAgentPanel({
     }
 
     const prompt =
-      "Generate laporan PDF-ready yang mendalam untuk Feature Design Visibility Tracker. Format dalam markdown yang rapi. Sertakan Executive Summary, metrik utama, review fitur Released, analisis UX mendalam seperti experienced UX Designer 10+ tahun, analisis business process dan potential business blocker, risiko operasional, gap evidence termasuk gambar UI/userflow jika tersedia, rekomendasi prioritas, dan metric yang harus dipantau.";
+      "Generate laporan PDF-ready yang mendalam untuk Feature Design Visibility Tracker. Format dalam markdown yang rapi. Sertakan Executive Summary, metrik utama, review fitur Released, analisis UX mendalam dengan cara berpikir UX senior, analisis business process dan potential business blocker, risiko operasional, gap evidence termasuk gambar UI/userflow jika tersedia, rekomendasi prioritas, dan metric yang harus dipantau. Jangan tulis byline seperti Analisis Oleh atau Prepared by. Jangan menyebut persona seperti saya praktisi UX; langsung berikan insight dan rekomendasi.";
 
     const userMsg: ChatMessage = {
       id: `u-report-${Date.now()}`,
