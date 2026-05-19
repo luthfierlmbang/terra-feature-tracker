@@ -16,9 +16,7 @@ import {
 } from "../data/features";
 import { Input, Select, Textarea, TextField, UiButton } from "./primitives";
 import { FileUploader } from "./file-uploader";
-
-import ReactQuill from "react-quill";
-import "react-quill/dist/quill.snow.css";
+import { RichTextEditor } from "./rich-text-editor";
 
 export type FeatureFormState = {
   module: string;
@@ -528,15 +526,11 @@ export function FeatureFormPage({
                 <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Express checkout" />
               </TextField>
               <TextField label="Description" required error={errors.description}>
-                <div className="bg-white rounded-lg overflow-hidden border border-[#d4d4d4] focus-within:border-[#02878d] focus-within:ring-4 focus-within:ring-[#f4ebff] transition-shadow">
-                  <ReactQuill 
-                    theme="snow" 
-                    value={form.description} 
-                    onChange={(val) => set("description", val)}
-                    placeholder="Briefly describe what this feature does..."
-                    className="border-none"
-                  />
-                </div>
+                <RichTextEditor
+                  value={form.description}
+                  onChange={(val) => set("description", val)}
+                  placeholder="Briefly describe what this feature does..."
+                />
               </TextField>
               <div className="grid grid-cols-2 gap-4">
                 <TextField label="PO / PIC" required error={errors.poPic}>

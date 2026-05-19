@@ -526,75 +526,6 @@ export function AiAgentPanel({
         </button>
       </div>
 
-      {/* Mode Selector */}
-      <div className="relative shrink-0 border-b border-[#e5e5e5] px-5 py-3">
-        <button
-          onClick={() => setShowModeMenu(!showModeMenu)}
-          className="flex h-10 w-full items-center justify-between rounded-lg border border-[#d4d4d4] bg-white px-3 outline-none transition-all hover:bg-[#fafafa] focus:border-[#02878d] focus:ring-4 focus:ring-[#f4ebff]"
-          style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
-        >
-          <div className="flex items-center gap-2.5">
-            <span className="text-[#02878d]">{currentMode.icon}</span>
-            <span
-              style={{
-                fontFamily: "Inter, sans-serif",
-                fontWeight: 500,
-                fontSize: 14,
-                lineHeight: "20px",
-                color: "#171717",
-              }}
-            >
-              {currentMode.label}
-            </span>
-          </div>
-          <ChevronDown
-            size={16}
-            strokeWidth={1.5}
-            color="#a3a3a3"
-            className={showModeMenu ? "rotate-180" : ""}
-            style={{ transition: "transform 0.2s" }}
-          />
-        </button>
-
-        {showModeMenu && (
-          <div
-            className="absolute left-5 right-5 top-full z-10 mt-1 overflow-hidden rounded-lg border border-[#e5e5e5] bg-white animate-slide-up-fade"
-            style={{
-              boxShadow:
-                "0 12px 16px -4px rgba(16,24,40,0.08), 0 4px 6px -2px rgba(16,24,40,0.03)",
-            }}
-          >
-            {MODES.map((m) => (
-              <button
-                key={m.key}
-                onClick={() => {
-                  setMode(m.key);
-                  setShowModeMenu(false);
-                }}
-                className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-[#fafafa] ${
-                  mode === m.key ? "bg-[#f0fafb]" : ""
-                }`}
-              >
-                <span className={mode === m.key ? "text-[#02878d]" : "text-[#737373]"}>
-                  {m.icon}
-                </span>
-                <span
-                  style={{
-                    fontFamily: "Inter, sans-serif",
-                    fontWeight: mode === m.key ? 600 : 500,
-                    fontSize: 14,
-                    lineHeight: "20px",
-                    color: mode === m.key ? "#02878d" : "#404040",
-                  }}
-                >
-                  {m.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Messages */}
       <div
         ref={scrollRef}
@@ -668,59 +599,172 @@ export function AiAgentPanel({
         ))}
       </div>
 
-      {/* Input */}
-      <div className="shrink-0 border-t border-[#e5e5e5] bg-white px-5 py-4">
+      {/* ─── Composer (chat input) ──────────────────────────────────────── */}
+      <div className="shrink-0 bg-[#fafafa] px-5 py-4">
         <div
-          className="flex items-end gap-2 rounded-lg border border-[#d4d4d4] bg-white px-3 py-2.5 transition-all focus-within:border-[#02878d] focus-within:ring-4 focus-within:ring-[#f4ebff]"
-          style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
+          className="relative rounded-2xl border border-[#e5e5e5] bg-white transition-all focus-within:border-[#02878d] focus-within:ring-4 focus-within:ring-[#f4ebff]"
+          style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
         >
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={currentMode.placeholder}
-            rows={1}
-            disabled={isLoading}
-            className="block min-w-0 flex-1 resize-none self-center bg-transparent placeholder:text-[#737373] focus:outline-none disabled:opacity-50"
-            style={{
-              fontFamily: "Inter, sans-serif",
-              fontWeight: 400,
-              fontSize: 14,
-              lineHeight: "20px",
-              color: "#171717",
-              height: 20,
-              minHeight: 20,
-              maxHeight: 140,
-              overflowY: "auto",
-              padding: 0,
-              margin: 0,
-            }}
-          />
-          <button
-            onClick={handleSend}
-            disabled={isLoading || !input.trim()}
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg text-white transition-all hover:bg-[#027479] disabled:cursor-not-allowed disabled:opacity-40"
-            style={{
-              background: "#02878d",
-              boxShadow:
-                "inset 0 0 0 1px rgba(0,0,0,0.18), inset 0 -2px 0 0 rgba(0,0,0,0.05)",
-            }}
-            aria-label="Send message"
-          >
-            {isLoading ? (
-              <Loader2 size={14} strokeWidth={2} className="animate-spin" />
-            ) : (
-              <Send size={14} strokeWidth={2} />
-            )}
-          </button>
+          {/* Top row: textarea + decorative icon */}
+          <div className="flex items-start gap-3 px-4 pt-4">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={currentMode.placeholder}
+              rows={1}
+              disabled={isLoading}
+              className="chat-textarea block min-w-0 flex-1 resize-none bg-transparent placeholder:text-[#a3a3a3] focus:outline-none disabled:opacity-50"
+              style={{
+                fontFamily: "Inter, sans-serif",
+                fontWeight: 400,
+                fontSize: 14,
+                lineHeight: "22px",
+                color: "#171717",
+                height: 22,
+                minHeight: 22,
+                maxHeight: 200,
+                overflowY: "auto",
+                padding: 0,
+                margin: 0,
+              }}
+            />
+
+            {/* Mode indicator pill (replaces the waveform icon, more functional) */}
+            <button
+              type="button"
+              onClick={() => setShowModeMenu(!showModeMenu)}
+              className="press-down flex shrink-0 items-center gap-1.5 rounded-full border border-[#e5e5e5] bg-[#fafafa] px-2.5 py-1 transition-all hover:bg-white hover:border-[#02878d]"
+              title="Change mode"
+            >
+              <span className="text-[#02878d]">{currentMode.icon}</span>
+              <span
+                style={{
+                  fontFamily: "Inter, sans-serif",
+                  fontWeight: 500,
+                  fontSize: 11,
+                  lineHeight: "16px",
+                  color: "#525252",
+                }}
+              >
+                {currentMode.label}
+              </span>
+              <ChevronDown
+                size={11}
+                strokeWidth={2}
+                className={`text-[#a3a3a3] transition-transform ${showModeMenu ? "rotate-180" : ""}`}
+              />
+            </button>
+          </div>
+
+          {/* Mode menu popover anchored to the input card */}
+          {showModeMenu && (
+            <div
+              className="animate-slide-up-fade absolute right-3 top-12 z-20 overflow-hidden rounded-lg border border-[#e5e5e5] bg-white"
+              style={{
+                boxShadow:
+                  "0 12px 16px -4px rgba(16,24,40,0.08), 0 4px 6px -2px rgba(16,24,40,0.03)",
+                minWidth: 180,
+              }}
+            >
+              {MODES.map((m) => (
+                <button
+                  key={m.key}
+                  onClick={() => {
+                    setMode(m.key);
+                    setShowModeMenu(false);
+                  }}
+                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[#fafafa] ${
+                    mode === m.key ? "bg-[#f0fafb]" : ""
+                  }`}
+                >
+                  <span className={mode === m.key ? "text-[#02878d]" : "text-[#737373]"}>
+                    {m.icon}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      fontWeight: mode === m.key ? 600 : 500,
+                      fontSize: 13,
+                      lineHeight: "18px",
+                      color: mode === m.key ? "#02878d" : "#404040",
+                    }}
+                  >
+                    {m.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Bottom action row: actions left, send right */}
+          <div className="flex items-center justify-between gap-2 px-3 pb-3 pt-2">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setMessages([
+                    {
+                      id: "welcome",
+                      role: "assistant",
+                      content: "",
+                      timestamp: new Date(),
+                    },
+                  ]);
+                }}
+                title="New chat"
+                className="press-down flex size-8 items-center justify-center rounded-lg text-[#737373] transition-colors hover:bg-[#fafafa] hover:text-[#171717]"
+              >
+                <Sparkles size={15} strokeWidth={1.67} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  textareaRef.current?.focus();
+                  setInput((s) => (s ? s : "Buatkan ringkasan eksekutif "));
+                }}
+                title="Insert template"
+                className="press-down flex size-8 items-center justify-center rounded-lg text-[#737373] transition-colors hover:bg-[#fafafa] hover:text-[#171717]"
+              >
+                <FileText size={15} strokeWidth={1.67} />
+              </button>
+            </div>
+
+            <button
+              onClick={handleSend}
+              disabled={isLoading || !input.trim()}
+              className="press-down inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition-all disabled:cursor-not-allowed disabled:opacity-40"
+              style={{
+                fontFamily: "Inter, sans-serif",
+                fontWeight: 600,
+                fontSize: 13,
+                lineHeight: "18px",
+                color: "#02878d",
+              }}
+              aria-label="Send message"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 size={14} strokeWidth={2} className="animate-spin" />
+                  Sending
+                </>
+              ) : (
+                <>
+                  Send
+                  <Send size={13} strokeWidth={2} />
+                </>
+              )}
+            </button>
+          </div>
         </div>
+
         <p
           className="mt-2 text-center"
           style={{
             fontFamily: "Inter, sans-serif",
             fontWeight: 400,
-            fontSize: 12,
+            fontSize: 11,
             lineHeight: "16px",
             color: "#a3a3a3",
           }}

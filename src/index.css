@@ -188,3 +188,55 @@
   transform: scale(0.97);
   transition: transform 80ms ease-out;
 }
+
+
+/* ─── Rich Text Editor styles ─────────────────────────────────────────────── */
+
+/* Show placeholder when contentEditable is empty */
+.rte-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #a3a3a3;
+  pointer-events: none;
+  display: block;
+}
+
+/* Lists inside RTE */
+.rte-editor ul {
+  list-style-type: disc;
+  padding-left: 24px;
+  margin: 8px 0;
+}
+.rte-editor ol {
+  list-style-type: decimal;
+  padding-left: 24px;
+  margin: 8px 0;
+}
+.rte-editor li {
+  margin: 2px 0;
+}
+
+/* Apply readable defaults to bold/italic since contentEditable
+   sometimes wraps with <b><i> tags rather than using bolder weights */
+.rte-editor b,
+.rte-editor strong {
+  font-weight: 600;
+}
+
+/* Custom resize handle styling so it doesn't look default-OS-ugly */
+.rte-content-wrap::-webkit-resizer {
+  border-bottom-right-radius: 12px;
+}
+
+/* ─── AI Chat Composer styles ─────────────────────────────────────────────── */
+
+/* Subtle scrollbar inside the chat textarea */
+.chat-textarea::-webkit-scrollbar {
+  width: 4px;
+}
+.chat-textarea::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  border-radius: 4px;
+}
+.chat-textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
