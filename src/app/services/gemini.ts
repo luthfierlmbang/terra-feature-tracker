@@ -38,12 +38,25 @@ const OUT_OF_SCOPE_POLICY = `
 
 Kamu hanya menjawab hal yang relevan dengan **Feature Design Visibility Tracker**, data fitur di tracker, product/design/research workflow, UX/UI, Figma, status release, squad/module, business impact fitur, evidence UI/userflow, dan cara memakai dashboard ini.
 
+Sebelum menjawab, lakukan analisis intent secara diam-diam. Jangan tampilkan proses analisanya. Klasifikasikan request user sebagai salah satu dari:
+- **Sapaan/simple chat**: jawab natural 1 kalimat, jangan analisis data.
+- **Pertanyaan faktual sederhana tentang tracker**: jawab langsung 1-3 kalimat atau bullet pendek.
+- **Pertanyaan data/listing**: sebut data yang diminta saja, jangan membuat diagnosis panjang.
+- **Minta analisa/evaluasi/rekomendasi/detail**: baru berikan analisis lebih lengkap dengan alasan dan next step.
+- **Minta draft/report/summarize**: ikuti mode aktif dan format yang sesuai.
+- **Follow-up**: gunakan konteks chat sebelumnya, tapi tetap jaga jawaban sesuai scope.
+- **Di luar konteks**: tolak singkat.
+
+Kedalaman jawaban harus mengikuti intensi user, bukan mengikuti banyaknya data yang tersedia. Data tracker adalah konteks pendukung, bukan alasan untuk selalu membuat analisis panjang.
+
 Kalau user bertanya hal yang jelas di luar konteks itu, kamu harus **inisiatif menolak dengan singkat**. Jangan jawab substansi pertanyaannya, jangan memberi trivia/recipe/rekomendasi umum, dan jangan mengaitkan paksa ke fitur yang ada.
 
 Format jawaban untuk pertanyaan di luar konteks harus maksimal 1 kalimat:
 "Itu di luar konteks Feature Design Visibility Tracker, jadi aku tidak jawab di sini."
 
 Kalau user hanya menyapa, seperti "hai", "halo", atau "hai tepat", jangan menganalisis data fitur, jangan membaca image evidence, dan jangan membuat report. Balas pendek bahwa kamu bisa membantu konteks tracker.
+
+Jangan membaca atau membahas image evidence kecuali user secara eksplisit meminta analisis visual, screenshot, UI evidence, userflow, UX, mismatch visual, atau membandingkan desain.
 
 Contoh yang harus ditolak: resep makanan, cuaca, politik, pantun, film, hotel/travel, matematika umum, kesehatan, saham/crypto, dan pertanyaan umum lain yang tidak berhubungan dengan tracker.
 `.trim();
@@ -449,7 +462,15 @@ export function getOutOfScopeReply(
   ) {
     return null;
   }
-  return OUT_OF_SCOPE_TOPIC_PATTERN.test(text) || text.length > 0 ? OUT_OF_SCOPE_REPLY : null;
+  return OUT_OF_SCOPE_TOPIC_PATTERN.test(text) ? OUT_OF_SCOPE_REPLY : null;
+}
+
+const IMAGE_ANALYSIS_PATTERN =
+  /\b(screenshot|gambar|image|visual|ui|ux|evidence|userflow|flow|figma|design|desain|mismatch|compare|comparison|bandingkan|analisa|analisis|review|evaluasi)\b/i;
+
+function shouldSendImageEvidence(userMessage: string, mode: AgentMode): boolean {
+  if (mode === "report" || mode === "summarize") return true;
+  return IMAGE_ANALYSIS_PATTERN.test(userMessage);
 }
 
 // ─── Main API Functions ───────────────────────────────────────────────────────
@@ -476,7 +497,9 @@ export async function* streamGemini(
   }
 
   const systemInstruction = buildSystemInstruction(features, types, trainingEntries, mode);
-  const imageEvidence = collectImageEvidence(features);
+  const imageEvidence = shouldSendImageEvidence(userMessage, mode)
+    ? collectImageEvidence(features)
+    : [];
   const history = buildChatHistory(
     chatHistory.filter((m) => !(m.role === "assistant" && !m.content))
   );

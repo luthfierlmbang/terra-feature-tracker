@@ -175,6 +175,45 @@ describe("streamGemini — transport", () => {
     });
   });
 
+  it("does not send imageEvidence for simple data questions", async () => {
+    fetchMock.mockResolvedValue(mockSseResponse(["hello"]));
+
+    const gen = streamGemini(
+      "status fitur",
+      [
+        {
+          id: "f-image-1",
+          module: "PRS",
+          name: "Timer Blocker PRS",
+          description: "Blocks timer interactions.",
+          poPic: "Faesol Afif",
+          featureStatus: "Released",
+          designSource: "PO / Squad",
+          designStatus: "Mismatch",
+          figmaAvailable: "Not Available",
+          actionNeeded: "Need Redesign",
+          uiScreens: [
+            {
+              id: "screen-1",
+              name: "Released UI",
+              existingDataUrl: "data:image/png;base64,aGVsbG8=",
+            },
+          ],
+          lastUpdated: "2026-05-18T00:00:00.000Z",
+        },
+      ],
+      undefined,
+      [],
+      "qa",
+      []
+    );
+    await collectGenerator(gen);
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body.imageEvidence).toEqual([]);
+  });
+
   it("answers clearly out-of-context questions locally without calling Gemini", async () => {
     fetchMock.mockResolvedValue(mockSseResponse(["should not be used"]));
 
@@ -355,11 +394,12 @@ describe("getOutOfScopeReply", () => {
     expect(getOutOfScopeReply("rekomendasi hotel di bali")).toBe(expected);
     expect(getOutOfScopeReply("cuaca jakarta hari ini")).toBe(expected);
     expect(getOutOfScopeReply("berapa 2 + 2?")).toBe(expected);
-    expect(getOutOfScopeReply("jelaskan teori relativitas")).toBe(expected);
-    expect(getOutOfScopeReply("cara memperbaiki AC")).toBe(expected);
-    expect(getOutOfScopeReply("siapa penemu lampu")).toBe(expected);
-    expect(getOutOfScopeReply("ajarin main catur")).toBe(expected);
-    expect(getOutOfScopeReply("buat slogan toko baju")).toBe(expected);
+  });
+
+  it("lets ambiguous prompts reach the model-level intent policy", () => {
+    expect(getOutOfScopeReply("jelaskan teori relativitas")).toBeNull();
+    expect(getOutOfScopeReply("cara memperbaiki AC")).toBeNull();
+    expect(getOutOfScopeReply("siapa penemu lampu")).toBeNull();
   });
 
   it("does not block tracker or design questions", () => {
