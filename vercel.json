@@ -1,8 +1,1 @@
-{
-  "functions": {
-    "api/admin/create-user.ts": {},
-    "api/admin/update-user.ts": {},
-    "api/admin/delete-user.ts": {},
-    "api/gemini/stream.ts": {}
-  }
-}
+{}
