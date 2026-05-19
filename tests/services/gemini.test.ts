@@ -248,6 +248,10 @@ describe("buildSystemInstruction — analysis context", () => {
     expect(prompt).toContain("Cara Menganalisis Fitur");
     expect(prompt).toContain("Untuk fitur **Released**");
     expect(prompt).toContain("experienced UX Designer");
+    expect(prompt).toContain("Jawab sesuai intensi");
+    expect(prompt).toContain("Analisis lengkap hanya saat diminta");
+    expect(prompt).toContain("Pertanyaan melenceng jauh");
+    expect(prompt).toContain("resep nasi goreng");
     expect(prompt).toContain("Analisis gambar");
     expect(prompt).toContain("Evaluasi UX mendalam");
     expect(prompt).toContain("Business process & blocker");
