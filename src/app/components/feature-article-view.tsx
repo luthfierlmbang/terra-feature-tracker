@@ -1,7 +1,6 @@
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { type Feature } from "../data/features";
 import { ActionBadge, DesignStatusBadge, FeatureStatusBadge, FigmaBadge } from "./badges";
-import { FeatureFlowChart } from "./feature-flow-chart";
 import { UiButton } from "./primitives";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -121,12 +120,6 @@ export function FeatureArticleView({
               style={{ fontFamily: "Inter, sans-serif", fontSize: 15, lineHeight: "24px" }}
               dangerouslySetInnerHTML={{ __html: feature.description || "<i>No description provided.</i>" }}
             />
-          </section>
-
-          {/* Flow Chart */}
-          <section className="flex flex-col gap-4">
-            <SectionTitle>Feature Flow Chart</SectionTitle>
-            <FeatureFlowChart feature={feature} />
           </section>
 
           {/* Impact to Business */}

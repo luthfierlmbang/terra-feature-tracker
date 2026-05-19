@@ -99,23 +99,13 @@ describe("SettingsPage", () => {
   });
 
   describe("AI model settings", () => {
-    it("renders model choices and calls onAiModelChange", () => {
-      const onAiModelChange = vi.fn();
-      render(
-        <SettingsPage
-          users={makeUsers()}
-          aiModel="gemini-3-flash-preview"
-          onAiModelChange={onAiModelChange}
-        />
-      );
+    it("does not render a model selector", () => {
+      render(<SettingsPage users={makeUsers()} />);
 
-      expect(screen.getByText("AI Model")).toBeInTheDocument();
-      expect(screen.getByText("3 Flash Preview")).toBeInTheDocument();
-      expect(screen.getByText("2.5 Flash Lite")).toBeInTheDocument();
-      expect(screen.getByText("2.5 Pro")).toBeInTheDocument();
-
-      fireEvent.click(screen.getByRole("button", { name: /2.5 Pro/i }));
-      expect(onAiModelChange).toHaveBeenCalledWith("gemini-2.5-pro");
+      expect(screen.queryByText("AI Model")).not.toBeInTheDocument();
+      expect(screen.queryByText("3 Flash Preview")).not.toBeInTheDocument();
+      expect(screen.queryByText("2.5 Flash Lite")).not.toBeInTheDocument();
+      expect(screen.queryByText("2.5 Pro")).not.toBeInTheDocument();
     });
   });
 

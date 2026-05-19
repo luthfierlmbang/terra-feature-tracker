@@ -4,7 +4,6 @@ import { UserAccount } from "../data/firestore-db";
 import { UiButton, Input, TextField } from "./primitives";
 import { toast } from "./toast";
 import { createUserViaApi, updateUserViaApi, deleteUserViaApi } from "../services/admin-api";
-import { AI_MODELS, DEFAULT_AI_MODEL, type AiModel } from "../services/gemini";
 
 // ─── Error parsing ────────────────────────────────────────────────────────────
 
@@ -32,12 +31,8 @@ function parseApiError(err: unknown): string {
 
 export function SettingsPage({
   users,
-  aiModel = DEFAULT_AI_MODEL,
-  onAiModelChange,
 }: {
   users: UserAccount[];
-  aiModel?: AiModel;
-  onAiModelChange?: (model: AiModel) => void;
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -179,53 +174,6 @@ export function SettingsPage({
           <Plus size={16} strokeWidth={2} className="mr-2" /> Add User
         </UiButton>
       </div>
-
-      {/* AI Model Settings */}
-      <section className="rounded-xl border border-[#e5e5e5] bg-white p-4 shadow-sm sm:p-6">
-        <div className="mb-5 flex flex-col gap-1">
-          <h3 className="text-[18px] font-semibold leading-7 text-[#171717]">
-            AI Model
-          </h3>
-          <p className="text-[14px] leading-5 text-[#525252]">
-            Pilih model yang dipakai Tepat AI untuk Q&A, analisis, summary, dan report.
-          </p>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          {AI_MODELS.map((model) => {
-            const selected = aiModel === model.value;
-            return (
-              <button
-                key={model.value}
-                type="button"
-                onClick={() => onAiModelChange?.(model.value)}
-                className={`flex min-h-[120px] flex-col items-start rounded-lg border p-4 text-left transition-all ${
-                  selected
-                    ? "border-[#02878d] bg-[#f0fafb] shadow-[0_0_0_4px_rgba(2,135,141,0.08)]"
-                    : "border-[#e5e5e5] bg-[#fafafa] hover:border-[#02878d] hover:bg-white"
-                }`}
-              >
-                <div className="mb-3 flex w-full items-center justify-between gap-3">
-                  <span className="text-[15px] font-semibold text-[#171717]">
-                    {model.label}
-                  </span>
-                  <span
-                    className={`flex size-4 items-center justify-center rounded-full border ${
-                      selected ? "border-[#02878d] bg-[#02878d]" : "border-[#d4d4d4] bg-white"
-                    }`}
-                    aria-hidden
-                  >
-                    {selected && <span className="size-1.5 rounded-full bg-white" />}
-                  </span>
-                </div>
-                <p className="text-[13px] leading-5 text-[#525252]">
-                  {model.description}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </section>
 
       {/* Users Table — 3 columns: Name, Email, Actions */}
       <div className="overflow-hidden rounded-xl border border-[#e5e5e5] bg-white shadow-sm">

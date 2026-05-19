@@ -31,6 +31,7 @@ import {
   subscribeToChatSessions,
   deriveChatTitle,
 } from "../data/firestore-db";
+import { parseFlowChartDefinition, renderFlowChartHtml } from "./flow-chart-diagram";
 
 // ─── Mode Config ──────────────────────────────────────────────────────────────
 
@@ -405,6 +406,26 @@ function markdownToReportHtml(markdown: string) {
       continue;
     }
 
+    if (trimmed.startsWith("```")) {
+      closeList();
+      const fence = trimmed.toLowerCase();
+      const codeLines: string[] = [];
+      index++;
+      while (index < lines.length && !lines[index].trim().startsWith("```")) {
+        codeLines.push(lines[index]);
+        index++;
+      }
+      index++;
+
+      if (fence.startsWith("```flowchart")) {
+        const definition = parseFlowChartDefinition(codeLines.join("\n"));
+        if (definition) html.push(renderFlowChartHtml(definition));
+      } else {
+        html.push(`<pre>${escapeHtml(codeLines.join("\n"))}</pre>`);
+      }
+      continue;
+    }
+
     if (trimmed.startsWith("# ")) {
       closeSection();
       html.push(`<h1>${formatReportInline(trimmed.slice(2))}</h1>`);
@@ -636,6 +657,148 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
         overflow-wrap: anywhere;
         padding: 10px;
         white-space: pre-wrap;
+      }
+      .flow-chart {
+        background: #ffffff;
+        border: 1px solid #e5e5e5;
+        border-radius: 10px;
+        margin: 14px 0 18px;
+        overflow: hidden;
+        padding: 16px;
+        page-break-inside: avoid;
+      }
+      .flow-chart figcaption {
+        color: #171717;
+        font-size: 13px;
+        font-weight: 700;
+        margin: 0 0 12px;
+      }
+      .flow-chart-track {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+        overflow-x: auto;
+        padding: 4px 0;
+      }
+      .flow-node-wrap {
+        align-items: center;
+        display: flex;
+        flex: 0 0 auto;
+        gap: 12px;
+      }
+      .flow-node {
+        align-items: center;
+        background: #ffffff;
+        border: 1.5px solid #bfe5e7;
+        color: #171717;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 76px;
+        min-width: 142px;
+        max-width: 172px;
+        padding: 10px 13px;
+        position: relative;
+        text-align: center;
+      }
+      .flow-kind {
+        color: #027479;
+        font-size: 9.5px;
+        font-weight: 800;
+        letter-spacing: .06em;
+        line-height: 12px;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+      }
+      .flow-node strong {
+        color: #171717;
+        font-size: 12px;
+        line-height: 16px;
+      }
+      .flow-node small {
+        color: #737373;
+        font-size: 10.5px;
+        line-height: 14px;
+        margin-top: 4px;
+      }
+      .flow-start,
+      .flow-end {
+        border-radius: 999px;
+        background: #f0fafb;
+      }
+      .flow-process {
+        border-radius: 2px;
+      }
+      .flow-decision {
+        aspect-ratio: 1;
+        clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+        min-height: 128px;
+        min-width: 128px;
+        max-width: 128px;
+        padding: 18px 22px;
+      }
+      .flow-input,
+      .flow-output {
+        clip-path: polygon(13% 0, 100% 0, 87% 100%, 0 100%);
+        padding-left: 24px;
+        padding-right: 24px;
+      }
+      .flow-output {
+        background: #ecfdf3;
+        border-color: #abefc6;
+      }
+      .flow-database {
+        border-radius: 50% / 16%;
+        padding-top: 14px;
+      }
+      .flow-database::before {
+        border-top: 1.5px solid #bfe5e7;
+        border-radius: 50%;
+        content: "";
+        height: 18px;
+        left: -1.5px;
+        position: absolute;
+        right: -1.5px;
+        top: 8px;
+      }
+      .flow-arrow {
+        align-items: center;
+        color: #027479;
+        display: flex;
+        flex: 0 0 auto;
+        height: 1px;
+        justify-content: center;
+        min-width: 34px;
+        position: relative;
+      }
+      .flow-arrow::before {
+        background: #bfe5e7;
+        content: "";
+        height: 1.5px;
+        left: 0;
+        position: absolute;
+        right: 0;
+        top: 50%;
+      }
+      .flow-arrow::after {
+        border-right: 1.5px solid #027479;
+        border-top: 1.5px solid #027479;
+        content: "";
+        height: 7px;
+        position: absolute;
+        right: 0;
+        top: calc(50% - 3.5px);
+        transform: rotate(45deg);
+        width: 7px;
+      }
+      .flow-arrow span {
+        background: #ffffff;
+        color: #027479;
+        font-size: 9.5px;
+        font-weight: 700;
+        padding: 0 4px;
+        position: relative;
+        z-index: 1;
       }
       .report-section {
         border: 1px solid #e5e5e5;
@@ -982,7 +1145,7 @@ export function AiAgentPanel({
     }
 
     const prompt =
-      "Generate laporan PDF-ready yang mendalam untuk Feature Design Visibility Tracker. Format dalam markdown yang rapi. Sertakan Executive Summary, metrik utama, review fitur Released, analisis UX mendalam dengan cara berpikir UX senior, analisis business process dan potential business blocker, risiko operasional, gap evidence termasuk gambar UI/userflow jika tersedia, rekomendasi prioritas, dan metric yang harus dipantau. Jangan tulis byline seperti Analisis Oleh atau Prepared by. Jangan tulis metadata seperti generated, printed, tanggal cetak, atau instruksi print. Jangan menyebut nama asisten, Tepat AI, atau persona seperti saya praktisi UX; langsung berikan insight dan rekomendasi.";
+      "Generate laporan PDF-ready yang mendalam untuk Feature Design Visibility Tracker. Format dalam markdown yang rapi. Sertakan Executive Summary, metrik utama, review fitur Released, analisis UX mendalam dengan cara berpikir UX senior, analisis business process dan potential business blocker, risiko operasional, gap evidence termasuk gambar UI/userflow jika tersedia, rekomendasi prioritas, dan metric yang harus dipantau. Kalau ada penjelasan alur, userflow, pipeline, atau proses yang membutuhkan diagram, sertakan blok ```flowchart dengan format baris kind|label|description opsional; gunakan kind start, input, process, decision, database, output, end sesuai notasi ISO. Jangan tulis byline seperti Analisis Oleh atau Prepared by. Jangan tulis metadata seperti generated, printed, tanggal cetak, atau instruksi print. Jangan menyebut nama asisten, Tepat AI, atau persona seperti saya praktisi UX; langsung berikan insight dan rekomendasi.";
 
     const userMsg: ChatMessage = {
       id: `u-report-${Date.now()}`,

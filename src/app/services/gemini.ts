@@ -31,7 +31,7 @@ const DASHBOARD_OWNER_TEAM = "Product & Design Team";
 const DASHBOARD_PURPOSE =
   "Melacak visibilitas pengembangan fitur, status desain, evidence desain, " +
   "PIC desainer/peneliti, dan tindakan yang dibutuhkan untuk setiap fitur produk.";
-export const GEMINI_MODEL = "gemini-3-flash-preview";
+export const GEMINI_MODEL = "gemini-3.1-flash-lite";
 
 const OUT_OF_SCOPE_POLICY = `
 # Batas Konteks
@@ -79,32 +79,12 @@ export type ImageEvidence = {
   data: string;
 };
 
-export const AI_MODELS = [
-  {
-    value: "gemini-3-flash-preview",
-    label: "3 Flash Preview",
-    description: "Model Gemini 3 terbaru untuk analisis dan reasoning yang lebih kuat.",
-  },
-  {
-    value: "gemini-2.5-flash-lite",
-    label: "2.5 Flash Lite",
-    description: "Lebih cepat dan ringan untuk Q&A harian, ringkasan singkat, dan cek status.",
-  },
-  {
-    value: "gemini-2.5-pro",
-    label: "2.5 Pro",
-    description: "Lebih kuat untuk analisis mendalam, report, dan reasoning yang kompleks.",
-  },
-] as const;
+export const DEFAULT_AI_MODEL = "gemini-3.1-flash-lite" as const;
 
-export type AiModel = (typeof AI_MODELS)[number]["value"];
-
-export const FALLBACK_AI_MODEL: AiModel = "gemini-2.5-flash-lite";
-
-export const DEFAULT_AI_MODEL: AiModel = "gemini-3-flash-preview";
+export type AiModel = typeof DEFAULT_AI_MODEL;
 
 export function isAiModel(value: unknown): value is AiModel {
-  return AI_MODELS.some((model) => model.value === value);
+  return value === DEFAULT_AI_MODEL;
 }
 
 const MAX_IMAGE_EVIDENCE = 5;
@@ -295,7 +275,20 @@ ${
 - **Kedalaman sesuai permintaan** — default tetap padat, tapi kalau user minta "detail", "analisa", "review", atau "evaluasi", jawab lebih lengkap dengan section seperti Verdict, Analisis UX, Analisis Bisnis & Proses, Risiko, Gap Evidence, Rekomendasi.
 - **Saat tidak tahu atau tidak yakin** — bilang apa adanya. Misal: "Datanya belum cukup buat menjawab itu" atau "Coba cek di tab Customize Types ya". Hindari respon kaku seperti "Maaf, informasi tersebut tidak tersedia dalam basis data saya."
 - **Saat membaca gambar** — rujuk gambar dengan label evidence-nya sebagai teks biasa. Jangan menulis URL, path backend, data URL, atau markdown image syntax seperti ![Screen](...). Jangan mengaku melihat detail yang tidak tampak jelas; bedakan observasi visual dari inferensi.
-- **Report/PDF** — jangan menulis byline seperti "Analisis Oleh", "Prepared by", atau nama analis. Langsung mulai dari isi laporan.
+- **Report/PDF** — jangan menulis byline seperti "Analisis Oleh", "Prepared by", atau nama analis. Langsung mulai dari isi laporan. Jika menjelaskan userflow/alur/proses yang membutuhkan diagram, tulis blok khusus:
+\`\`\`flowchart
+title: Judul alur
+start|Mulai
+input|User memilih tanggal/filter
+process|Validasi parameter
+decision|Parameter valid?
+database|Query database/storage
+process|Render HTML
+process|Kompilasi PDF
+output|PDF terunduh
+end|Selesai
+\`\`\`
+Gunakan start/end untuk titik awal/akhir, process untuk aksi proses, decision untuk percabangan, input/output untuk masukan/keluaran, dan database untuk query baca/tulis database/storage.
 `.trim();
   }
 

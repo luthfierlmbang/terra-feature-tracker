@@ -42,7 +42,7 @@ import {
   type Feature,
   type ActionNeeded,
 } from "./data/features";
-import { AI_MODELS, DEFAULT_AI_MODEL, type AiModel } from "./services/gemini";
+import { DEFAULT_AI_MODEL } from "./services/gemini";
 
 const INITIAL_TYPES: TypesState = {
   featureStatus: FEATURE_STATUSES,
@@ -125,7 +125,6 @@ export default function App() {
   const [types, setTypes] = useState<TypesState>(INITIAL_TYPES);
   const [squadOwners, setSquadOwners] = useState<Record<string, string>>(INITIAL_SQUAD_OWNERS);
   const [moduleSquads, setModuleSquads] = useState<Record<string, string>>(INITIAL_MODULE_SQUADS);
-  const [aiModel, setAiModel] = useState<AiModel>(DEFAULT_AI_MODEL);
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<Feature | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -138,11 +137,9 @@ export default function App() {
   const typesRef = useRef(types);
   const squadOwnersRef = useRef(squadOwners);
   const moduleSquadsRef = useRef(moduleSquads);
-  const aiModelRef = useRef(aiModel);
   useEffect(() => { typesRef.current = types; }, [types]);
   useEffect(() => { squadOwnersRef.current = squadOwners; }, [squadOwners]);
   useEffect(() => { moduleSquadsRef.current = moduleSquads; }, [moduleSquads]);
-  useEffect(() => { aiModelRef.current = aiModel; }, [aiModel]);
 
   // Debounced config persist — batches rapid successive calls into one write
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -153,7 +150,7 @@ export default function App() {
         types: typesRef.current,
         squadOwners: squadOwnersRef.current,
         moduleSquads: moduleSquadsRef.current,
-        aiModel: aiModelRef.current,
+        aiModel: DEFAULT_AI_MODEL,
       }).catch((err) => console.error("Failed to save config:", err));
     }, 100);
   }
@@ -198,11 +195,10 @@ export default function App() {
     );
 
     const unsubFeatures = subscribeToFeatures(setFeatures);
-    const unsubConfig = subscribeToConfig(({ types: t, squadOwners: so, moduleSquads: ms, aiModel: model }) => {
+    const unsubConfig = subscribeToConfig(({ types: t, squadOwners: so, moduleSquads: ms }) => {
       setTypes(t);
       setSquadOwners(so);
       setModuleSquads(ms);
-      setAiModel(model);
     });
     const unsubUsers = subscribeToUsers((loadedUsers) => {
       setUsers(loadedUsers);
@@ -443,14 +439,6 @@ export default function App() {
     persistConfig();
   }
 
-  function handleAiModelChange(model: AiModel) {
-    setAiModel(model);
-    aiModelRef.current = model;
-    persistConfig();
-    const modelLabel = AI_MODELS.find((item) => item.value === model)?.label ?? "Selected model";
-    toast.success("AI model updated", `${modelLabel} is now active.`);
-  }
-
   const hasActiveFilters =
     Boolean(filters.squad) || Boolean(filters.year) || Boolean(filters.featureStatus) || filters.search.length > 0;
 
@@ -663,11 +651,7 @@ export default function App() {
 
                 {activeNav === "settings" && (
                   <div className="animate-fade-in h-full overflow-y-auto">
-                    <SettingsPage
-                      users={users}
-                      aiModel={aiModel}
-                      onAiModelChange={handleAiModelChange}
-                    />
+                    <SettingsPage users={users} />
                   </div>
                 )}
 
@@ -688,7 +672,7 @@ export default function App() {
               features={activeFeatures}
               types={types}
               trainingEntries={aiTrainingEntries}
-              aiModel={aiModel}
+              aiModel={DEFAULT_AI_MODEL}
               userId={firebaseUser.uid}
               onClose={() => setShowAiPanel(false)}
             />

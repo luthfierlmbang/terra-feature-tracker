@@ -62,7 +62,7 @@ describe("AiAgentPanel", () => {
         features={[feature]}
         types={undefined}
         trainingEntries={[]}
-        aiModel="gemini-2.5-flash-lite"
+        aiModel="gemini-3.1-flash-lite"
         userId="test-user"
         onClose={vi.fn()}
       />
@@ -93,7 +93,7 @@ describe("AiAgentPanel", () => {
         features={[feature]}
         types={undefined}
         trainingEntries={[]}
-        aiModel="gemini-2.5-flash-lite"
+        aiModel="gemini-3.1-flash-lite"
         userId="test-user"
         onClose={vi.fn()}
       />
@@ -131,7 +131,7 @@ describe("AiAgentPanel", () => {
         features={[feature]}
         types={undefined}
         trainingEntries={[]}
-        aiModel="gemini-3-flash-preview"
+        aiModel="gemini-3.1-flash-lite"
         userId="test-user"
         onClose={vi.fn()}
       />
