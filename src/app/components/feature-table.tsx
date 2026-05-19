@@ -178,7 +178,13 @@ export function FeatureTable({
         </thead>
         <tbody>
           {features.map((f, idx) => (
-            <tr key={f.id} className="hover:bg-[#fafafa]">
+            <tr
+              key={f.id}
+              className="animate-slide-up transition-colors hover:bg-[#fafafa]"
+              style={{
+                animationDelay: `${Math.min(idx * 35, 350)}ms`,
+              }}
+            >
               <td className="border-b border-[#e5e5e5] px-4 py-4 align-middle" style={CELL_MUTED}>{idx + 1}</td>
               <td className="border-b border-[#e5e5e5] px-4 py-4 align-middle" style={CELL_MUTED}>{f.squad ?? "—"}</td>
               <td className="border-b border-[#e5e5e5] px-4 py-4 align-middle" style={CELL_MUTED}>{f.module}</td>

@@ -734,14 +734,22 @@ function DashboardView({
         <div className="flex items-center gap-2">
           <button
             onClick={onToggleAi}
-            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
+            className={`relative flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium press-down transition-all duration-200 ${
               showAiPanel
-                ? "border-[#027479] bg-[#027479] text-white"
-                : "border-[#e5e5e5] bg-white text-[#404040] hover:border-[#027479] hover:text-[#027479]"
+                ? "border-[#027479] bg-[#027479] text-white shadow-[0_0_0_4px_rgba(2,116,121,0.12)]"
+                : "border-[#e5e5e5] bg-white text-[#404040] hover:border-[#027479] hover:text-[#027479] hover:shadow-[0_0_0_4px_rgba(2,116,121,0.08)]"
             }`}
             style={{ fontFamily: "Inter, sans-serif", fontSize: 13 }}
           >
-            <Bot size={15} strokeWidth={1.5} />
+            <span className="relative">
+              <Bot size={15} strokeWidth={1.5} />
+              {!showAiPanel && (
+                <span
+                  className="animate-soft-pulse absolute -right-1 -top-1 size-2 rounded-full bg-[#02878d]"
+                  aria-hidden
+                />
+              )}
+            </span>
             Tepat AI
           </button>
           <UiButton variant="primary" leadingIcon={<Plus size={18} strokeWidth={1.67} color="#fff" />} onClick={onAdd}>

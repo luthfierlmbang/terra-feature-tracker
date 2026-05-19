@@ -109,18 +109,19 @@ export function Sidebar({
               </div>
             )}
             <div className="px-3 flex flex-col gap-1">
-              {section.items.map((item) => {
+              {section.items.map((item, idx) => {
                 const isActive = item.key === active;
                 const Icon = item.icon;
                 return (
                   <button
                     key={item.key}
                     onClick={() => onChange(item.key)}
-                    className={`flex items-center rounded-md transition-all ${
+                    className={`animate-slide-in-left press-down flex items-center rounded-md transition-all ${
                       isCollapsed ? "justify-center p-2.5 w-full" : "gap-3 px-3 py-2 w-full text-left"
                     } ${
                       isActive ? "bg-[#035a5d] text-white" : "text-[#e6f1f2] hover:bg-[#024f52] hover:text-white"
                     }`}
+                    style={{ animationDelay: `${idx * 50}ms` }}
                     title={item.label}
                   >
                     <Icon size={18} strokeWidth={isActive ? 2 : 1.5} color={isActive ? "#ffffff" : "#b0d5d7"} />

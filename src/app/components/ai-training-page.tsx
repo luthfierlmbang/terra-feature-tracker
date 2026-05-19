@@ -225,16 +225,19 @@ export function AiTrainingPage({
 
       {/* Stats row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {AI_TRAINING_CATEGORIES.map((cat) => {
+        {AI_TRAINING_CATEGORIES.map((cat, idx) => {
           const isActive = activeCategory === cat.key;
           return (
             <button
               key={cat.key}
               onClick={() => setActiveCategory(cat.key)}
-              className={`flex flex-col gap-3 rounded-xl border bg-white p-4 text-left transition-all hover:border-[#02878d] hover:shadow-sm ${
+              className={`hover-lift press-down animate-pop flex flex-col gap-3 rounded-xl border bg-white p-4 text-left transition-all hover:border-[#02878d] ${
                 isActive ? "border-[#02878d] ring-4 ring-[#f4ebff]" : "border-[#e5e5e5]"
               }`}
-              style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
+              style={{
+                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                animationDelay: `${idx * 60}ms`,
+              }}
             >
               <div
                 className="flex size-9 items-center justify-center rounded-lg"
@@ -332,14 +335,17 @@ export function AiTrainingPage({
           </div>
         )}
 
-        {filtered.map((entry) => {
+        {filtered.map((entry, idx) => {
           const cat = AI_TRAINING_CATEGORIES.find((c) => c.key === entry.category)!;
           const color = CATEGORY_COLORS[entry.category];
           return (
             <div
               key={entry.id}
-              className="group flex items-start gap-4 rounded-xl border border-[#e5e5e5] bg-white p-5 transition-all hover:border-[#d4d4d4] hover:shadow-sm"
-              style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
+              className="hover-lift animate-slide-up group flex items-start gap-4 rounded-xl border border-[#e5e5e5] bg-white p-5"
+              style={{
+                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                animationDelay: `${Math.min(idx * 50, 400)}ms`,
+              }}
             >
               <div
                 className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg"

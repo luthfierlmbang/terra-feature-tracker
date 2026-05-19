@@ -470,15 +470,26 @@ export function AiAgentPanel({
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-[#e5e5e5] px-5 py-4">
         <div className="flex items-center gap-3">
-          <div
-            className="flex size-9 items-center justify-center rounded-lg"
-            style={{
-              background: "#02878d",
-              boxShadow:
-                "inset 0 0 0 1px rgba(0,0,0,0.18), inset 0 -2px 0 0 rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.05)",
-            }}
-          >
-            <Bot size={18} strokeWidth={2} color="#ffffff" />
+          <div className="relative">
+            {/* halo ring */}
+            <span
+              className="animate-soft-pulse absolute inset-[-4px] rounded-xl"
+              aria-hidden
+              style={{
+                background:
+                  "radial-gradient(circle, rgba(2, 135, 141, 0.35) 0%, rgba(2, 135, 141, 0) 70%)",
+              }}
+            />
+            <div
+              className="relative flex size-9 items-center justify-center rounded-lg"
+              style={{
+                background: "#02878d",
+                boxShadow:
+                  "inset 0 0 0 1px rgba(0,0,0,0.18), inset 0 -2px 0 0 rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.05)",
+              }}
+            >
+              <Bot size={18} strokeWidth={2} color="#ffffff" />
+            </div>
           </div>
           <div className="flex flex-col gap-0.5">
             <span
@@ -592,7 +603,7 @@ export function AiAgentPanel({
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex gap-2.5 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+            className={`animate-slide-up flex gap-2.5 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
           >
             {msg.role === "assistant" && (
               <div

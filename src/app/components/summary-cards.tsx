@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { LayoutGrid, Users, AlertCircle, PenTool } from "lucide-react";
 import type { Feature } from "../data/features";
 
@@ -9,6 +10,38 @@ type Card = {
   iconColor: string;
   suffix: string;
 };
+
+// Animated number that counts up from 0 → target on mount/value change.
+function AnimatedNumber({ value }: { value: number }) {
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    if (value === 0) {
+      setDisplay(0);
+      return;
+    }
+    const duration = Math.min(800, 200 + value * 30);
+    const start = performance.now();
+    const startValue = display;
+    let raf = 0;
+
+    const step = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // easeOutCubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const next = Math.round(startValue + (value - startValue) * eased);
+      setDisplay(next);
+      if (progress < 1) raf = requestAnimationFrame(step);
+    };
+
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  return <>{display}</>;
+}
 
 export function SummaryCards({ features }: { features: Feature[] }) {
   const total = features.length;
@@ -61,13 +94,16 @@ export function SummaryCards({ features }: { features: Feature[] }) {
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {cards.map((c) => {
+      {cards.map((c, idx) => {
         const Icon = c.icon;
         return (
           <div
             key={c.label}
-            className="flex flex-col rounded-2xl border border-[#e5e5e5] bg-[#f8f9fa] overflow-hidden"
-            style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.02)" }}
+            className="hover-lift animate-pop flex flex-col rounded-2xl border border-[#e5e5e5] bg-[#f8f9fa] overflow-hidden"
+            style={{
+              boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
+              animationDelay: `${idx * 70}ms`,
+            }}
           >
             {/* Header label with tighter sleek padding */}
             <div className="px-4 pt-2 pb-1.5">
@@ -100,7 +136,7 @@ export function SummaryCards({ features }: { features: Feature[] }) {
                     letterSpacing: "-0.02em",
                   }}
                 >
-                  {c.value}
+                  <AnimatedNumber value={c.value} />
                 </span>
                 <span
                   style={{
@@ -114,7 +150,10 @@ export function SummaryCards({ features }: { features: Feature[] }) {
                   {c.suffix}
                 </span>
               </div>
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg" style={{ background: c.iconBg }}>
+              <div
+                className="flex size-9 shrink-0 items-center justify-center rounded-lg transition-transform duration-300 group-hover:scale-110"
+                style={{ background: c.iconBg }}
+              >
                 <Icon size={18} strokeWidth={1.67} color={c.iconColor} />
               </div>
             </div>
