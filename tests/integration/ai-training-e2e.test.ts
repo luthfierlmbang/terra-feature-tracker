@@ -328,7 +328,7 @@ describe("AI Training — end-to-end integration", () => {
 
     // Step 3: send a chat with these entries — system instruction should include them
     fetchMock.mockClear();
-    const gen1 = streamGemini("hi", [], undefined, currentEntries, "qa", []);
+    const gen1 = streamGemini("status fitur berdasarkan knowledge base", [], undefined, currentEntries, "qa", []);
     await collectGenerator(gen1);
 
     const body1 = JSON.parse(fetchMock.mock.calls[0][1].body);
@@ -346,7 +346,7 @@ describe("AI Training — end-to-end integration", () => {
 
     // Step 5: send another chat — system instruction must NOT contain the deleted entry
     fetchMock.mockClear();
-    const gen2 = streamGemini("hi again", [], undefined, afterDeleteEntries, "qa", []);
+    const gen2 = streamGemini("status fitur berdasarkan knowledge base", [], undefined, afterDeleteEntries, "qa", []);
     await collectGenerator(gen2);
 
     const body2 = JSON.parse(fetchMock.mock.calls[0][1].body);

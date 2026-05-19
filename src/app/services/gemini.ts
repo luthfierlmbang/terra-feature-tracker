@@ -43,6 +43,8 @@ Kalau user bertanya hal yang jelas di luar konteks itu, kamu harus **inisiatif m
 Format jawaban untuk pertanyaan di luar konteks harus maksimal 1 kalimat:
 "Itu di luar konteks Feature Design Visibility Tracker, jadi aku tidak jawab di sini."
 
+Kalau user hanya menyapa, seperti "hai", "halo", atau "hai tepat", jangan menganalisis data fitur, jangan membaca image evidence, dan jangan membuat report. Balas pendek bahwa kamu bisa membantu konteks tracker.
+
 Contoh yang harus ditolak: resep makanan, cuaca, politik, pantun, film, hotel/travel, matematika umum, kesehatan, saham/crypto, dan pertanyaan umum lain yang tidak berhubungan dengan tracker.
 `.trim();
 
@@ -418,6 +420,9 @@ export function buildChatHistory(chatHistory: ChatMessage[]) {
 const OUT_OF_SCOPE_REPLY =
   "Itu di luar konteks Feature Design Visibility Tracker, jadi aku tidak jawab di sini.";
 
+const APP_GREETING_REPLY =
+  "Hai, aku bisa bantu cek data fitur, status desain, Figma, UX, dan action yang perlu ditindaklanjuti.";
+
 const IN_SCOPE_PATTERN =
   /\b(feature|fitur|tracker|dashboard|design|desain|figma|ux|ui|product|produk|module|modul|squad|status|release|rilis|po|pic|research|riset|userflow|flow|laporan|report|summary|ringkasan|data|timer blocker|prs|screenshot|gambar|image|visual|evidence)\b/i;
 
@@ -437,7 +442,7 @@ export function getOutOfScopeReply(
   const text = userMessage.trim();
   if (!text) return null;
   if (IN_SCOPE_PATTERN.test(text)) return null;
-  if (SAFE_APP_META_PATTERN.test(text)) return null;
+  if (SAFE_APP_META_PATTERN.test(text)) return APP_GREETING_REPLY;
   if (
     FOLLOW_UP_PATTERN.test(text) &&
     chatHistory.some((message) => IN_SCOPE_PATTERN.test(message.content))

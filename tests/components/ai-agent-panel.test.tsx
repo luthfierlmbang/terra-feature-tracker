@@ -82,4 +82,34 @@ describe("AiAgentPanel", () => {
     expect(screen.queryByText(/Verdict Singkat/i)).not.toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("keeps greetings short and does not analyze tracker data", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    render(
+      <AiAgentPanel
+        features={[feature]}
+        types={undefined}
+        trainingEntries={[]}
+        userId="test-user"
+        onClose={vi.fn()}
+      />
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText('Tanya apa saja, e.g. "Fitur mana yang belum ada designnya?"'),
+      { target: { value: "hai tepat" } }
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Hai, aku bisa bantu cek data fitur, status desain, Figma, UX, dan action yang perlu ditindaklanjuti.")
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/analisis visual/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Timer Blocker PRS/i)).not.toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

@@ -207,6 +207,45 @@ describe("streamGemini — transport", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("answers simple greetings locally without analyzing feature evidence", async () => {
+    fetchMock.mockResolvedValue(mockSseResponse(["should not be used"]));
+
+    const gen = streamGemini(
+      "hai tepat",
+      [
+        {
+          id: "f-release-1",
+          module: "PRS",
+          name: "Timer Blocker PRS",
+          description: "Blocks timer interactions.",
+          poPic: "Faesol Afif",
+          featureStatus: "Released",
+          designSource: "PO / Squad",
+          designStatus: "Mismatch",
+          figmaAvailable: "Not Available",
+          actionNeeded: "Need Redesign",
+          uiScreens: [
+            {
+              id: "screen-1",
+              name: "Released UI",
+              existingDataUrl: "data:image/png;base64,aGVsbG8=",
+            },
+          ],
+          lastUpdated: "2026-05-18T00:00:00.000Z",
+        },
+      ],
+      undefined,
+      [],
+      "qa",
+      []
+    );
+
+    await expect(collectGenerator(gen)).resolves.toEqual([
+      "Hai, aku bisa bantu cek data fitur, status desain, Figma, UX, dan action yang perlu ditindaklanjuti.",
+    ]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("throws 'Not signed in.' when auth.currentUser is null", async () => {
     // Temporarily patch the auth mock's currentUser to null
     const firebase = await import("../../src/app/data/firebase");
@@ -326,6 +365,12 @@ describe("getOutOfScopeReply", () => {
   it("does not block tracker or design questions", () => {
     expect(getOutOfScopeReply("analisa UX fitur Timer Blocker PRS")).toBeNull();
     expect(getOutOfScopeReply("fitur mana yang belum ada figma link?")).toBeNull();
+  });
+
+  it("returns a local greeting for simple app greetings", () => {
+    expect(getOutOfScopeReply("hai tepat")).toBe(
+      "Hai, aku bisa bantu cek data fitur, status desain, Figma, UX, dan action yang perlu ditindaklanjuti."
+    );
   });
 
   it("allows short follow-up questions when prior chat is about tracker data", () => {
