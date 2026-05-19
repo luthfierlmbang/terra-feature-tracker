@@ -16,8 +16,9 @@ export async function requireAuth(
   try {
     const decoded = await adminAuth().verifyIdToken(m[1]);
     return { uid: decoded.uid, email: decoded.email };
-  } catch (_e) {
-    res.status(401).json({ error: "Invalid or expired ID token." });
+  } catch (e: any) {
+    const msg = e?.message ?? String(e);
+    res.status(401).json({ error: "Invalid or expired ID token.", detail: msg });
     return null;
   }
 }
