@@ -1,6 +1,6 @@
 // api/_lib/auth-middleware.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { adminAuth } from "./admin";
+import { adminAuth } from "./admin.js";
 
 export async function requireAuth(
   req: VercelRequest,

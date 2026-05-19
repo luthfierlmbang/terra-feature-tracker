@@ -1,7 +1,7 @@
 // api/admin/update-user.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { adminAuth, adminDb } from "../_lib/admin";
-import { requireAuth } from "../_lib/auth-middleware";
+import { adminAuth, adminDb } from "../_lib/admin.js";
+import { requireAuth } from "../_lib/auth-middleware.js";
 
 type Body = { uid: string; name?: string; email?: string; password?: string };
 
