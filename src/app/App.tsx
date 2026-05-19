@@ -13,25 +13,26 @@ import { UiButton } from "./components/primitives";
 import { LoginPage } from "./components/login-page";
 import { SettingsPage } from "./components/settings-page";
 import { toast, ToastProvider } from "./components/toast";
+import { AiTrainingPage } from "./components/ai-training-page";
 import { auth, isFirebaseConfigured } from "./data/firebase";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import {
   subscribeToFeatures,
   subscribeToConfig,
   subscribeToUsers,
+  subscribeToAiTraining,
   saveFeature,
   deleteFeature,
   saveConfig,
   saveUser,
-  deleteUserProfile,
   migrateFromLocalStorage,
   ensureConfigExists,
   INITIAL_SQUAD_OWNERS,
   INITIAL_MODULE_SQUADS,
   type UserAccount,
+  type AiTrainingEntry,
 } from "./data/firestore-db";
 import {
-  INITIAL_FEATURES,
   FEATURE_STATUSES,
   DESIGN_STATUSES,
   DESIGN_SOURCES,
@@ -128,6 +129,7 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [showAiPanel, setShowAiPanel] = useState(false);
   const [hasLocalData, setHasLocalData] = useState(false);
+  const [aiTrainingEntries, setAiTrainingEntries] = useState<AiTrainingEntry[]>([]);
 
   // Refs to always hold the latest config state — avoids stale closures in
   // sequential saveConfig calls (e.g. addItem calls onChange then onSquadOwnerChange)
@@ -210,11 +212,12 @@ export default function App() {
             id: firebaseUser.uid,
             name: defaultName,
             email: email,
-            password: "admin1234", // Seed default password for the admin account
           }).catch(err => console.error("Auto-syncing current user to Firestore failed:", err));
         }
       }
     });
+
+    const unsubAiTraining = subscribeToAiTraining(setAiTrainingEntries);
 
     // Mark db as loaded after first subscription response
     const timer = setTimeout(() => setIsDbLoaded(true), 800);
@@ -223,6 +226,7 @@ export default function App() {
       unsubFeatures();
       unsubConfig();
       unsubUsers();
+      unsubAiTraining();
       clearTimeout(timer);
     };
   }, [firebaseUser]);
@@ -465,7 +469,6 @@ export default function App() {
                 <div>STORAGE_BUCKET: {getEnvStatus(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET)}</div>
                 <div>MESSAGING_SENDER_ID: {getEnvStatus(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID)}</div>
                 <div>APP_ID: {getEnvStatus(import.meta.env.VITE_FIREBASE_APP_ID)}</div>
-                <div>GEMINI_KEY: {getEnvStatus(import.meta.env.VITE_GEMINI_API_KEY)}</div>
                 <div className="mt-2 pt-1 border-t border-gray-200 text-[#171717] font-semibold">IS_CONFIGURED: {String(isFirebaseConfigured)}</div>
               </pre>
             </div>
@@ -643,6 +646,12 @@ export default function App() {
                     <SettingsPage users={users} />
                   </div>
                 )}
+
+                {activeNav === "ai-training" && (
+                  <div className="animate-fade-in h-full overflow-y-auto">
+                    <AiTrainingPage entries={aiTrainingEntries} />
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -651,7 +660,7 @@ export default function App() {
         {/* AI Agent Side Panel */}
         {showAiPanel && activeNav === "dashboard" && !activeForm && !viewingFeature && (
           <div className="flex h-full w-[380px] shrink-0 overflow-hidden rounded-xl border border-[#e5e5e5]" style={{ boxShadow: "0 1px 1px rgba(0,0,0,0.05)" }}>
-            <AiAgentPanel features={activeFeatures} types={types} onClose={() => setShowAiPanel(false)} />
+            <AiAgentPanel features={activeFeatures} types={types} trainingEntries={aiTrainingEntries} onClose={() => setShowAiPanel(false)} />
           </div>
         )}
       </div>

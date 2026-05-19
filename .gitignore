@@ -12,6 +12,12 @@ build/
 .env.local
 .env.*.local
 
+# Firebase service account — contains private key, NEVER commit
+service-account.json
+
+# Firebase CLI cache
+.firebase/
+
 # Editor
 .DS_Store
 .vscode/

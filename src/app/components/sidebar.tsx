@@ -7,9 +7,10 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  Brain,
 } from "lucide-react";
 
-type NavKey = "dashboard" | "customize" | "settings";
+type NavKey = "dashboard" | "customize" | "settings" | "ai-training";
 
 const SECTIONS: {
   title: string;
@@ -26,6 +27,12 @@ const SECTIONS: {
     items: [
       { key: "customize", label: "Customize Types", icon: Sliders },
       { key: "settings", label: "Settings", icon: Settings },
+    ],
+  },
+  {
+    title: "AI",
+    items: [
+      { key: "ai-training", label: "AI Training", icon: Brain },
     ],
   },
 ];

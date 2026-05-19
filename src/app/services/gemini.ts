@@ -13,13 +13,16 @@
  *   The dashboard name and identity are ALWAYS injected regardless of branch.
  *
  * This file is the single source of truth for ALL Gemini prompt logic.
+ *
+ * SECURITY: All Gemini API calls are proxied through /api/gemini/stream.
+ * The API key is server-side only (GEMINI_API_KEY, no VITE_ prefix).
+ * Client authenticates via Firebase ID token.
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { auth } from "../data/firebase";
 import type { Feature } from "../data/features";
 import type { TypesState } from "../components/customize-types";
-
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
+import type { AiTrainingEntry } from "../data/firestore-db";
 
 // ─── Constants (static identity — never changes) ──────────────────────────────
 
@@ -28,7 +31,7 @@ const DASHBOARD_OWNER_TEAM = "Product & Design Team";
 const DASHBOARD_PURPOSE =
   "Melacak visibilitas pengembangan fitur, status desain, ketersediaan Figma, " +
   "PIC desainer/peneliti, dan tindakan yang dibutuhkan untuk setiap fitur produk.";
-const GEMINI_MODEL = "gemini-3.1-flash-lite"; // Upgraded to Gemini 3.1 Flash for maximum efficiency and speed
+export const GEMINI_MODEL = "gemini-3.1-flash-lite"; // Upgraded to Gemini 3.1 Flash for maximum efficiency and speed
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,7 +47,7 @@ export type ChatMessage = {
 
 // ─── Mode Prompts ─────────────────────────────────────────────────────────────
 
-const MODE_SYSTEM_PROMPTS: Record<AgentMode, string> = {
+export const MODE_SYSTEM_PROMPTS: Record<AgentMode, string> = {
   qa:
     "Jawab setiap pertanyaan berdasarkan data JSON yang tersedia. Jika data tidak ada, katakan dengan jelas.",
   draft:
@@ -61,9 +64,10 @@ const MODE_SYSTEM_PROMPTS: Record<AgentMode, string> = {
 // yang bisa tertimpa user. Ini adalah pendekatan paling robust sesuai
 // dokumentasi Gemini API v1beta.
 
-function buildSystemInstruction(
+export function buildSystemInstruction(
   features: Feature[],
   types: TypesState | undefined,
+  trainingEntries: AiTrainingEntry[] = [],
   mode: AgentMode
 ): string {
   const modeGuide = MODE_SYSTEM_PROMPTS[mode];
@@ -141,6 +145,14 @@ ${
 - **Action Needed:** Need Design, Need Figma Link, Need Design Review, Need Redesign, No Action`
 }
 
+${
+  trainingEntries.length > 0
+    ? `## Pengetahuan Tambahan Tim (Knowledge Base)\n\nBerikut adalah konteks, panduan, dan konvensi tim yang WAJIB kamu jadikan acuan utama saat menjawab:\n\n${trainingEntries
+        .map((e) => `### [${e.category}] ${e.title}\n${e.content}`)
+        .join("\n\n")}`
+    : ""
+}
+
 ---
 
 # Aturan Perilaku (WAJIB DIIKUTI)
@@ -187,6 +199,14 @@ Ketika user bertanya tentang dashboard ini secara umum, jelaskan:
 - Fungsi: ${DASHBOARD_PURPOSE}
 - Fitur-fitur utama: melacak status fitur, status desain, kebutuhan tindakan, PIC desainer & researcher, link Figma.
 
+${
+  trainingEntries.length > 0
+    ? `## Pengetahuan Tambahan Tim (Knowledge Base)\n\nBerikut adalah konteks, panduan, dan konvensi tim yang WAJIB kamu jadikan acuan utama saat menjawab:\n\n${trainingEntries
+        .map((e) => `### [${e.category}] ${e.title}\n${e.content}`)
+        .join("\n\n")}`
+    : ""
+}
+
 ---
 
 # Aturan Perilaku (WAJIB DIIKUTI)
@@ -201,7 +221,7 @@ Ketika user bertanya tentang dashboard ini secara umum, jelaskan:
 
 // ─── Utility: Group Count ─────────────────────────────────────────────────────
 
-function groupCount<T>(arr: T[], key: (item: T) => string | undefined): Record<string, number> {
+export function groupCount<T>(arr: T[], key: (item: T) => string | undefined): Record<string, number> {
   return arr.reduce(
     (acc, item) => {
       const k = key(item) || "Unknown";
@@ -216,7 +236,7 @@ function groupCount<T>(arr: T[], key: (item: T) => string | undefined): Record<s
 // REASONING: Gemini API mensyaratkan history harus dimulai dari role "user".
 // Fungsi ini memfilter dan memvalidasi history sebelum dikirim.
 
-function buildChatHistory(chatHistory: ChatMessage[]) {
+export function buildChatHistory(chatHistory: ChatMessage[]) {
   const history: { role: string; parts: { text: string }[] }[] = [];
   let foundFirstUser = false;
 
@@ -238,95 +258,110 @@ function buildChatHistory(chatHistory: ChatMessage[]) {
   return history;
 }
 
-// ─── Guard: Prevent stale/empty API calls ────────────────────────────────────
-// REASONING: Jika API key tidak ada, lebih baik gagal cepat dengan pesan jelas
-// daripada membuat request yang pasti error ke Google.
-
-function assertApiKey(): void {
-  const key = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!key || key.trim() === "") {
-    throw new Error(
-      "VITE_GEMINI_API_KEY tidak ditemukan. Pastikan environment variable sudah diatur di Vercel dan file .env lokal."
-    );
-  }
-}
-
 // ─── Main API Functions ───────────────────────────────────────────────────────
 
 /**
  * streamGemini — Primary function used by AiAgentPanel.
  * Streams response chunks for real-time display in the chat UI.
+ *
+ * Calls /api/gemini/stream (server-side proxy) with a Firebase ID token.
+ * Parses SSE records from the response body and yields each text chunk.
  */
 export async function* streamGemini(
   userMessage: string,
   features: Feature[],
   types: TypesState | undefined,
+  trainingEntries: AiTrainingEntry[] = [],
   mode: AgentMode = "qa",
   chatHistory: ChatMessage[] = []
 ): AsyncGenerator<string> {
-  assertApiKey();
-
-  const systemInstruction = buildSystemInstruction(features, types, mode);
-
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_MODEL,
-    systemInstruction,
-  });
-
+  const systemInstruction = buildSystemInstruction(features, types, trainingEntries, mode);
   const history = buildChatHistory(
-    // Exclude the very last assistant placeholder (empty) from history
     chatHistory.filter((m) => !(m.role === "assistant" && !m.content))
   );
 
-  const chat = model.startChat({ history });
-  const result = await chat.sendMessageStream(userMessage);
+  if (!auth?.currentUser) throw new Error("Not signed in.");
+  const token = await auth.currentUser.getIdToken();
 
-  for await (const chunk of result.stream) {
-    yield chunk.text();
+  const res = await fetch("/api/gemini/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ systemInstruction, userMessage, history }),
+  });
+
+  if (!res.ok || !res.body) {
+    if (res.status === 429) throw new Error("quota: 429");
+    throw new Error(`Gemini proxy failed (${res.status}).`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+
+    let idx;
+    while ((idx = buf.indexOf("\n\n")) !== -1) {
+      const record = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+
+      const eventLine = record.split("\n").find((l) => l.startsWith("event:"));
+      const dataLine = record.split("\n").find((l) => l.startsWith("data:"));
+      if (!dataLine) continue;
+      const payload = dataLine.slice(5).trim();
+      if (eventLine?.includes("error")) {
+        const { status, message } = JSON.parse(payload);
+        if (status === 429) throw new Error("quota: 429");
+        throw new Error(message ?? "Gemini proxy error.");
+      }
+      if (eventLine?.includes("done")) return;
+      if (!payload) continue;
+      const { text } = JSON.parse(payload);
+      if (text) yield text;
+    }
   }
 }
 
 /**
  * askGemini — Non-streaming version, used for one-shot queries.
+ * Collects all chunks from streamGemini and returns the full response.
  */
 export async function askGemini(
   userMessage: string,
   features: Feature[],
   types: TypesState | undefined,
+  trainingEntries: AiTrainingEntry[] = [],
   mode: AgentMode = "qa",
   chatHistory: ChatMessage[] = []
 ): Promise<string> {
-  assertApiKey();
-
-  const systemInstruction = buildSystemInstruction(features, types, mode);
-
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_MODEL,
-    systemInstruction,
-  });
-
-  const history = buildChatHistory(chatHistory);
-  const chat = model.startChat({ history });
-  const result = await chat.sendMessage(userMessage);
-  return result.response.text();
+  let full = "";
+  for await (const chunk of streamGemini(userMessage, features, types, trainingEntries, mode, chatHistory)) {
+    full += chunk;
+  }
+  return full;
 }
 
 // ─── Quick Actions ────────────────────────────────────────────────────────────
 
-export async function generateStatusReport(features: Feature[], types?: TypesState): Promise<string> {
+export async function generateStatusReport(features: Feature[], types?: TypesState, trainingEntries: AiTrainingEntry[] = []): Promise<string> {
   return askGemini(
     "Buatkan laporan status lengkap dari semua fitur yang ada saat ini dalam format markdown.",
     features,
     types,
+    trainingEntries,
     "report"
   );
 }
 
-export async function summarizeDashboard(features: Feature[], types?: TypesState): Promise<string> {
+export async function summarizeDashboard(features: Feature[], types?: TypesState, trainingEntries: AiTrainingEntry[] = []): Promise<string> {
   return askGemini(
     "Berikan ringkasan eksekutif dari kondisi tracker fitur produk kami saat ini.",
     features,
     types,
+    trainingEntries,
     "summarize"
   );
 }

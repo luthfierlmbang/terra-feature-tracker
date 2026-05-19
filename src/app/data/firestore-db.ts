@@ -32,7 +32,6 @@ export type UserAccount = {
   id: string;
   name: string;
   email: string;
-  password?: string;
 };
 
 // ─── Initial Values ───────────────────────────────────────────────────────────
@@ -190,13 +189,17 @@ export function subscribeToConfig(
 
 // ─── Users (Firestore profile, not Auth) ─────────────────────────────────────
 
+function toUserAccount(raw: any): UserAccount {
+  return { id: raw.id, name: raw.name, email: raw.email };
+}
+
 export async function fetchUsers(): Promise<UserAccount[]> {
   const snap = await getDocs(usersCol());
-  return snap.docs.map((d) => d.data() as UserAccount);
+  return snap.docs.map((d) => toUserAccount(d.data()));
 }
 
 export async function saveUser(user: UserAccount): Promise<void> {
-  await setDoc(doc(usersCol(), user.id), user);
+  await setDoc(doc(usersCol(), user.id), { id: user.id, name: user.name, email: user.email });
 }
 
 export async function deleteUserProfile(userId: string): Promise<void> {
@@ -207,7 +210,7 @@ export function subscribeToUsers(
   callback: (users: UserAccount[]) => void
 ): () => void {
   return onSnapshot(usersCol(), (snap) => {
-    callback(snap.docs.map((d) => d.data() as UserAccount));
+    callback(snap.docs.map((d) => toUserAccount(d.data())));
   });
 }
 
@@ -259,19 +262,18 @@ export async function migrateFromLocalStorage(force = false): Promise<{
 
     // Migrate users from localStorage to Firestore
     if (Array.isArray(data.users)) {
+      const batch2 = writeBatch(db);
       for (const u of data.users) {
         if (u?.id && u?.email) {
-          batch.set(doc(usersCol(), u.id), {
+          batch2.set(doc(usersCol(), u.id), {
             id: u.id,
             name: u.name || u.email.split("@")[0],
             email: u.email,
-            password: u.password || ""
           });
         }
       }
+      await batch2.commit();
     }
-
-    await batch.commit();
 
     localStorage.setItem(MIGRATED_KEY, "true");
     return { migrated: true, count };
@@ -280,3 +282,54 @@ export async function migrateFromLocalStorage(force = false): Promise<{
     return { migrated: false, count: 0 };
   }
 }
+
+// ─── AI Training Knowledge Base ───────────────────────────────────────────────
+
+export type AiTrainingCategory =
+  | "product_context"
+  | "design_process"
+  | "team_convention"
+  | "domain_knowledge"
+  | "qa_example";
+
+export type AiTrainingEntry = {
+  id: string;
+  category: AiTrainingCategory;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const AI_TRAINING_CATEGORIES: { key: AiTrainingCategory; label: string; description: string }[] = [
+  { key: "product_context", label: "Product Context", description: "Konteks produk, goals, dan background perusahaan." },
+  { key: "design_process", label: "Design Process", description: "Alur kerja desain, standar, dan metodologi tim." },
+  { key: "team_convention", label: "Team Convention", description: "Konvensi penamaan, aturan tim, dan terminologi internal." },
+  { key: "domain_knowledge", label: "Domain Knowledge", description: "Pengetahuan domain bisnis dan industri yang relevan." },
+  { key: "qa_example", label: "Q&A Example", description: "Contoh pertanyaan-jawaban untuk melatih akurasi AI." },
+];
+
+const aiTrainingCol = () =>
+  collection(db, "workspaces", WORKSPACE_ID, "ai-training");
+
+export async function fetchAiTraining(): Promise<AiTrainingEntry[]> {
+  const snap = await getDocs(aiTrainingCol());
+  return snap.docs.map((d) => d.data() as AiTrainingEntry);
+}
+
+export async function saveAiTrainingEntry(entry: AiTrainingEntry): Promise<void> {
+  await setDoc(doc(aiTrainingCol(), entry.id), entry);
+}
+
+export async function deleteAiTrainingEntry(entryId: string): Promise<void> {
+  await deleteDoc(doc(aiTrainingCol(), entryId));
+}
+
+export function subscribeToAiTraining(
+  callback: (entries: AiTrainingEntry[]) => void
+): () => void {
+  return onSnapshot(aiTrainingCol(), (snap) => {
+    callback(snap.docs.map((d) => d.data() as AiTrainingEntry));
+  });
+}
+

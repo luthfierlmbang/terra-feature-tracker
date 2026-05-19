@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/admin/create-user.ts": { "runtime": "nodejs20.x" },
+    "api/admin/update-user.ts": { "runtime": "nodejs20.x" },
+    "api/admin/delete-user.ts": { "runtime": "nodejs20.x" },
+    "api/gemini/stream.ts": { "runtime": "nodejs20.x" }
+  }
+}
