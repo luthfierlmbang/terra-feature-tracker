@@ -94,10 +94,63 @@ export function FileUploader({
     return (bytes / 1024).toFixed(0) + " KB";
   };
 
+  const clearFile = () => {
+    if (activeIntervalRef.current) {
+      clearInterval(activeIntervalRef.current);
+      activeIntervalRef.current = null;
+    }
+    setState("idle");
+    setProgress(0);
+    setFileInfo(null);
+    onClear();
+  };
+
   if (state !== "idle") {
     const isError = state === "error";
     const isComplete = state === "complete";
     const isUploading = state === "uploading";
+    const fileName = fileInfo?.name || "Uploaded image";
+    const fileSize = fileInfo?.size ? formatSize(fileInfo.size) : null;
+
+    if (isComplete && value) {
+      return (
+        <div className="overflow-hidden rounded-xl border border-[#e5e5e5] bg-white shadow-sm">
+          <div className="relative flex h-40 items-center justify-center bg-[#fafafa] p-2">
+            <img src={value} alt="Uploaded preview" className="max-h-full max-w-full rounded-lg object-contain" />
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-[#e5e5e5] px-4 py-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fafb] text-[#027479]">
+                <CheckCircle2 size={18} strokeWidth={1.67} />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-[#171717]">{fileName}</p>
+                <p className="text-xs text-[#737373]">{fileSize ? `${fileSize} • Ready` : "Ready"}</p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="press-down flex size-8 items-center justify-center rounded-lg text-[#525252] transition-colors hover:bg-[#fafafa] hover:text-[#027479]"
+                title="Replace image"
+              >
+                <CloudUpload size={16} strokeWidth={1.67} />
+              </button>
+              <button
+                type="button"
+                onClick={clearFile}
+                className="press-down flex size-8 items-center justify-center rounded-lg text-[#b42318] transition-colors hover:bg-[#fef3f2]"
+                title="Remove image"
+              >
+                <Trash2 size={16} strokeWidth={1.67} />
+              </button>
+            </div>
+          </div>
+          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleChange} />
+        </div>
+      );
+    }
 
     return (
       <div className="flex flex-col gap-3">
@@ -108,7 +161,7 @@ export function FileUploader({
           <div className="flex flex-1 flex-col gap-1.5 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div className="flex flex-col min-w-0">
-                <span className="truncate text-sm font-medium text-[#171717]">{fileInfo?.name}</span>
+                <span className="truncate text-sm font-medium text-[#171717]">{fileName}</span>
                 <div className="flex items-center gap-1.5 text-xs text-[#737373]">
                   <span>{formatSize((fileInfo?.size || 0) * (progress / 100))} of {formatSize(fileInfo?.size || 0)}</span>
                   {isError && (
@@ -137,10 +190,7 @@ export function FileUploader({
                   )}
                 </div>
               </div>
-      <button onClick={() => {
-        if (activeIntervalRef.current) clearInterval(activeIntervalRef.current);
-        onClear();
-      }} className="text-[#a3a3a3] hover:text-[#525252] transition-colors p-1" title="Remove file">
+              <button type="button" onClick={clearFile} className="text-[#a3a3a3] hover:text-[#525252] transition-colors p-1" title="Remove file">
                 <Trash2 size={18} />
               </button>
             </div>
@@ -156,18 +206,13 @@ export function FileUploader({
             ) : null}
 
             {isError && (
-              <button className="text-xs font-semibold text-[#b42318] text-left mt-1 hover:underline">
+              <button type="button" className="text-xs font-semibold text-[#b42318] text-left mt-1 hover:underline">
                 Try again
               </button>
             )}
           </div>
         </div>
-
-        {isComplete && value && (
-          <div className="relative overflow-hidden rounded-xl border border-[#e5e5e5] bg-gray-50 flex items-center justify-center p-2 h-32">
-             <img src={value} alt="Preview" className="max-h-full max-w-full object-contain rounded-lg" />
-          </div>
-        )}
+        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleChange} />
       </div>
     );
   }
