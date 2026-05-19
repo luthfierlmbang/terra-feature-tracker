@@ -80,6 +80,7 @@ export function SettingsPage({
     }
 
     setLoading(true);
+    const loadingId = toast.loading("Creating account...", `Registering ${addForm.email} in Firebase`);
     try {
       await createUserViaApi({
         name: addForm.name,
@@ -88,13 +89,11 @@ export function SettingsPage({
       });
       setShowAdd(false);
       setAddForm({ name: "", email: "", password: "" });
-      toast.success("User successfully added!");
+      toast.resolve(loadingId, "Account created!", `${addForm.name} has been added to the workspace.`);
     } catch (err: unknown) {
       const friendly = parseApiError(err);
       setError(friendly);
-      if ((err instanceof Error) && err.message.startsWith("AUTH_EXPIRED:")) {
-        toast.error(friendly);
-      }
+      toast.reject(loadingId, "Failed to create account", friendly);
     } finally {
       setLoading(false);
     }
@@ -119,16 +118,15 @@ export function SettingsPage({
     };
 
     setLoading(true);
+    const loadingId = toast.loading("Updating account...");
     try {
       await updateUserViaApi(patch);
       setShowEdit(false);
-      toast.success("User updated successfully!");
+      toast.resolve(loadingId, "Account updated!", "Changes have been saved.");
     } catch (err: unknown) {
       const friendly = parseApiError(err);
       setError(friendly);
-      if ((err instanceof Error) && err.message.startsWith("AUTH_EXPIRED:")) {
-        toast.error(friendly);
-      }
+      toast.reject(loadingId, "Failed to update", friendly);
     } finally {
       setLoading(false);
     }
@@ -145,13 +143,14 @@ export function SettingsPage({
     }
 
     setLoading(true);
+    const loadingId = toast.loading("Deleting account...", `Removing ${deleteTarget.name}`);
     try {
       await deleteUserViaApi(deleteTarget.id);
-      toast.success("User deleted successfully!");
+      toast.resolve(loadingId, "Account deleted", `${deleteTarget.name} has been removed.`);
       setDeleteTarget(null);
     } catch (err: unknown) {
       const friendly = parseApiError(err);
-      toast.error(friendly);
+      toast.reject(loadingId, "Failed to delete", friendly);
     } finally {
       setLoading(false);
     }

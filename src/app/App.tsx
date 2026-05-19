@@ -265,8 +265,8 @@ export default function App() {
         lastUpdated: now,
       }) as Feature;
       saveFeature(updated)
-        .then(() => toast({ title: "Changes saved", description: "The feature has been updated successfully." }))
-        .catch((err) => toast({ title: "Error", description: `Failed to save: ${err?.message || String(err)}`, type: "error" }))
+        .then(() => toast.success("Changes saved", "The feature has been updated successfully."))
+        .catch((err) => toast.error("Failed to save", err?.message || String(err)))
         .finally(() => setIsSaving(false));
     } else {
       const newFeature: Feature = sanitize({
@@ -285,8 +285,8 @@ export default function App() {
         lastUpdated: now,
       }) as Feature;
       saveFeature(newFeature)
-        .then(() => toast({ title: "Feature created", description: "The new feature has been added to tracking." }))
-        .catch((err) => toast({ title: "Error", description: `Failed to save: ${err?.message || String(err)}`, type: "error" }))
+        .then(() => toast.success("Feature created", "The new feature has been added to tracking."))
+        .catch((err) => toast.error("Failed to save", err?.message || String(err)))
         .finally(() => setIsSaving(false));
     }
     setActiveForm(null);
@@ -297,9 +297,9 @@ export default function App() {
     deleteFeature(feature.id)
       .then(() => {
         setDeleteTarget(null);
-        toast({ title: "Feature deleted", description: `"${feature.name}" has been permanently deleted.`, type: "error" });
+        toast.success("Feature deleted", `"${feature.name}" has been permanently deleted.`);
       })
-      .catch(() => toast({ title: "Error", description: "Failed to delete.", type: "error" }))
+      .catch(() => toast.error("Failed to delete", "Please try again."))
       .finally(() => setIsSaving(false));
   }
 
@@ -529,7 +529,10 @@ export default function App() {
         <Sidebar
           active={activeNav}
           onChange={(k) => { setActiveNav(k); setFilters(EMPTY_FILTERS); setActiveForm(null); setViewingFeature(null); }}
-          onLogout={() => signOut(auth)}
+          onLogout={() => {
+            toast.loading("Logging out...");
+            signOut(auth);
+          }}
           user={user}
         />
 
@@ -580,12 +583,13 @@ export default function App() {
                           <button 
                             onClick={async () => {
                               setIsSaving(true);
+                              const loadingId = toast.loading("Mengimpor data...", "Memindahkan fitur ke cloud Firebase");
                               try {
                                 const { count } = await migrateFromLocalStorage(true);
                                 setHasLocalData(false);
-                                toast.success(`Berhasil mengimpor ${count} fitur ke cloud Firebase!`);
+                                toast.resolve(loadingId, `Berhasil mengimpor ${count} fitur!`, "Data sudah tersimpan di cloud Firebase.");
                               } catch (err) {
-                                toast.error("Gagal melakukan migrasi.");
+                                toast.reject(loadingId, "Gagal melakukan migrasi", "Coba lagi atau refresh halaman.");
                               } finally {
                                 setIsSaving(false);
                               }

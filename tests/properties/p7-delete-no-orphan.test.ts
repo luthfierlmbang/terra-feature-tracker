@@ -37,10 +37,16 @@ vi.mock("../../src/app/data/firebase", () => ({
 
 // ─── Mock toast ───────────────────────────────────────────────────────────────
 vi.mock("../../src/app/components/toast", () => ({
-  toast: {
+  toast: Object.assign(vi.fn(), {
     success: vi.fn(),
     error: vi.fn(),
-  },
+    warning: vi.fn(),
+    loading: vi.fn().mockReturnValue("mock-loading-id"),
+    resolve: vi.fn(),
+    reject: vi.fn(),
+    dismiss: vi.fn(),
+    update: vi.fn(),
+  }),
 }));
 
 // ─── Import mocked modules to get spy references ──────────────────────────────

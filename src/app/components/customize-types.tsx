@@ -63,7 +63,7 @@ export function CustomizeTypes({
       onModuleSquadChange(val, draftModuleSquad);
     }
 
-    toast({ title: "Value added", description: `"${val}" has been added to ${GROUPS.find(g => g.key === active)?.title}.` });
+    toast.success("Value added", `"${val}" has been added to ${GROUPS.find(g => g.key === active)?.title}.`);
     setDraft("");
     setDraftOwner("");
     setDraftModuleSquad("");
@@ -75,11 +75,7 @@ export function CustomizeTypes({
     } else {
       onChange({ ...types, [active]: list.filter((v) => v !== value) });
     }
-    toast({
-      title: "Value removed",
-      description: `"${value}" has been removed. Existing features using this value are unaffected.`,
-      type: "error",
-    });
+    toast.warning("Value removed", `"${value}" has been removed. Existing features using this value are unaffected.`);
   }
 
   function startEdit(value: string) {
@@ -128,7 +124,7 @@ export function CustomizeTypes({
       onModuleSquadChange(targetKey, editModuleSquadDraft);
     }
 
-    toast({ title: "Value updated", description: `Type value has been updated successfully.` });
+    toast.success("Value updated", "Type value has been updated successfully.");
     setEditingItem(null);
   }
 

@@ -103,6 +103,7 @@ export function AiTrainingPage({
       return;
     }
     setIsSaving(true);
+    const loadingId = toast.loading(editingEntry ? "Menyimpan perubahan..." : "Menambahkan entry...");
     const now = new Date().toISOString();
     const entry: AiTrainingEntry = {
       id: editingEntry?.id || `train-${Date.now()}`,
@@ -115,17 +116,14 @@ export function AiTrainingPage({
 
     try {
       await saveAiTrainingEntry(entry);
-      toast({
-        title: editingEntry ? "Entry diperbarui" : "Entry ditambahkan",
-        description: `"${entry.title}" berhasil disimpan ke knowledge base AI.`,
-      });
+      toast.resolve(
+        loadingId,
+        editingEntry ? "Entry diperbarui" : "Entry ditambahkan",
+        `"${entry.title}" berhasil disimpan ke knowledge base AI.`
+      );
       setShowForm(false);
     } catch (err: any) {
-      toast({
-        title: "Gagal menyimpan",
-        description: err?.message || String(err),
-        type: "error",
-      });
+      toast.reject(loadingId, "Gagal menyimpan", err?.message || String(err));
     } finally {
       setIsSaving(false);
     }
@@ -133,20 +131,13 @@ export function AiTrainingPage({
 
   async function handleDelete(entry: AiTrainingEntry) {
     setIsSaving(true);
+    const loadingId = toast.loading("Menghapus entry...");
     try {
       await deleteAiTrainingEntry(entry.id);
-      toast({
-        title: "Entry dihapus",
-        description: `"${entry.title}" dihapus dari knowledge base.`,
-        type: "error",
-      });
+      toast.resolve(loadingId, "Entry dihapus", `"${entry.title}" dihapus dari knowledge base.`);
       setDeleteConfirm(null);
     } catch (err: any) {
-      toast({
-        title: "Gagal menghapus",
-        description: err?.message || String(err),
-        type: "error",
-      });
+      toast.reject(loadingId, "Gagal menghapus", err?.message || String(err));
     } finally {
       setIsSaving(false);
     }
