@@ -31,7 +31,7 @@ const DASHBOARD_OWNER_TEAM = "Product & Design Team";
 const DASHBOARD_PURPOSE =
   "Melacak visibilitas pengembangan fitur, status desain, ketersediaan Figma, " +
   "PIC desainer/peneliti, dan tindakan yang dibutuhkan untuk setiap fitur produk.";
-export const GEMINI_MODEL = "gemini-3.1-flash-lite"; // Upgraded to Gemini 3.1 Flash for maximum efficiency and speed
+export const GEMINI_MODEL = "gemini-3-flash-preview";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
