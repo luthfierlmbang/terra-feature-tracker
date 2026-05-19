@@ -15,15 +15,24 @@ export function getAdminApp(): App {
 
   const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
-  // Vercel stores newlines as literal `\n` — convert back to real newlines.
-  const privateKey = (process.env.FIREBASE_ADMIN_PRIVATE_KEY ?? "")
-    .replace(/\\n/g, "\n");
+  // Handle all possible Vercel env var formats for private key:
+  // 1. Literal \n (backslash-n as two chars) → convert to real newlines
+  // 2. Already has real newlines → leave as-is
+  // 3. Wrapped in quotes → strip them
+  let privateKey = (process.env.FIREBASE_ADMIN_PRIVATE_KEY ?? "")
+    .replace(/^["']|["']$/g, "")   // strip surrounding quotes if any
+    .replace(/\\n/g, "\n");         // convert literal \n to real newlines
 
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error(
       "Missing FIREBASE_ADMIN_PROJECT_ID / CLIENT_EMAIL / PRIVATE_KEY env vars."
     );
   }
+
+  // Debug: log key format (first/last 30 chars only, never log full key)
+  console.log("[admin] privateKey starts:", JSON.stringify(privateKey.slice(0, 30)));
+  console.log("[admin] privateKey ends:", JSON.stringify(privateKey.slice(-30)));
+  console.log("[admin] privateKey length:", privateKey.length);
 
   _app = initializeApp({
     credential: cert({ projectId, clientEmail, privateKey }),
