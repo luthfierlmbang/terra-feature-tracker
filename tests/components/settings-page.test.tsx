@@ -104,17 +104,17 @@ describe("SettingsPage", () => {
       render(
         <SettingsPage
           users={makeUsers()}
-          aiModel="gemini-3.1-flash-lite"
+          aiModel="gemini-2.5-flash-lite"
           onAiModelChange={onAiModelChange}
         />
       );
 
       expect(screen.getByText("AI Model")).toBeInTheDocument();
-      expect(screen.getByText("3.1 Flash Lite")).toBeInTheDocument();
-      expect(screen.getByText("3.1 Pro")).toBeInTheDocument();
+      expect(screen.getByText("2.5 Flash Lite")).toBeInTheDocument();
+      expect(screen.getByText("2.5 Pro")).toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole("button", { name: /3.1 Pro/i }));
-      expect(onAiModelChange).toHaveBeenCalledWith("gemini-3.1-pro");
+      fireEvent.click(screen.getByRole("button", { name: /2.5 Pro/i }));
+      expect(onAiModelChange).toHaveBeenCalledWith("gemini-2.5-pro");
     });
   });
 

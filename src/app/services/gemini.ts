@@ -31,7 +31,7 @@ const DASHBOARD_OWNER_TEAM = "Product & Design Team";
 const DASHBOARD_PURPOSE =
   "Melacak visibilitas pengembangan fitur, status desain, evidence desain, " +
   "PIC desainer/peneliti, dan tindakan yang dibutuhkan untuk setiap fitur produk.";
-export const GEMINI_MODEL = "gemini-3.1-flash-lite";
+export const GEMINI_MODEL = "gemini-2.5-flash-lite";
 
 const OUT_OF_SCOPE_POLICY = `
 # Batas Konteks
@@ -81,20 +81,20 @@ export type ImageEvidence = {
 
 export const AI_MODELS = [
   {
-    value: "gemini-3.1-flash-lite",
-    label: "3.1 Flash Lite",
+    value: "gemini-2.5-flash-lite",
+    label: "2.5 Flash Lite",
     description: "Lebih cepat dan ringan untuk Q&A harian, ringkasan singkat, dan cek status.",
   },
   {
-    value: "gemini-3.1-pro",
-    label: "3.1 Pro",
+    value: "gemini-2.5-pro",
+    label: "2.5 Pro",
     description: "Lebih kuat untuk analisis mendalam, report, dan reasoning yang kompleks.",
   },
 ] as const;
 
 export type AiModel = (typeof AI_MODELS)[number]["value"];
 
-export const DEFAULT_AI_MODEL: AiModel = "gemini-3.1-flash-lite";
+export const DEFAULT_AI_MODEL: AiModel = "gemini-2.5-flash-lite";
 
 export function isAiModel(value: unknown): value is AiModel {
   return AI_MODELS.some((model) => model.value === value);

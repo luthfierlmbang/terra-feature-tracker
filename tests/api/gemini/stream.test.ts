@@ -226,7 +226,7 @@ describe("api/gemini/stream — handler", () => {
 
     // SDK should have been called with the right model
     expect(getGenerativeModel).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "gemini-3.1-flash-lite" })
+      expect.objectContaining({ model: "gemini-2.5-flash-lite" })
     );
   });
 
@@ -266,7 +266,7 @@ describe("api/gemini/stream — handler", () => {
     expect(written[2]).toBe("event: done\ndata: {}\n\n");
   });
 
-  it("uses the selected 3.1 Pro model when provided", async () => {
+  it("uses the selected 2.5 Pro model when provided", async () => {
     async function* mockStream() {
       yield { text: () => "OK" };
     }
@@ -284,7 +284,7 @@ describe("api/gemini/stream — handler", () => {
       body: {
         userMessage: "Hi",
         systemInstruction: "Be helpful.",
-        model: "gemini-3.1-pro",
+        model: "gemini-2.5-pro",
       },
     });
     const res = makeRes();
@@ -292,7 +292,7 @@ describe("api/gemini/stream — handler", () => {
     await handler(req, res);
 
     expect(getGenerativeModel).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "gemini-3.1-pro" })
+      expect.objectContaining({ model: "gemini-2.5-pro" })
     );
   });
 
@@ -322,8 +322,50 @@ describe("api/gemini/stream — handler", () => {
     await handler(req, res);
 
     expect(getGenerativeModel).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "gemini-3.1-flash-lite" })
+      expect.objectContaining({ model: "gemini-2.5-flash-lite" })
     );
+  });
+
+  it("retries with Flash Lite when the selected model is not found by Gemini", async () => {
+    async function* mockStream() {
+      yield { text: () => "Fallback OK" };
+    }
+
+    const sendMessageStream = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error("404 Not Found: models/gemini-2.5-pro is not found for API version v1beta")
+      )
+      .mockResolvedValueOnce({ stream: mockStream() });
+
+    const { GoogleGenerativeAI, getGenerativeModel } = makeGeminiMock({ sendMessageStream });
+
+    vi.doMock("../../../api/_lib/auth-middleware", () => ({
+      requireAuth: vi.fn().mockResolvedValue({ uid: "u1", email: "u@test.com" }),
+    }));
+    vi.doMock("@google/generative-ai", () => ({ GoogleGenerativeAI }));
+
+    const { default: handler } = await import("../../../api/gemini/stream");
+    const req = makeReq({
+      body: {
+        userMessage: "Hi",
+        systemInstruction: "Be helpful.",
+        model: "gemini-2.5-pro",
+      },
+    });
+    const res = makeRes();
+
+    await handler(req, res);
+
+    expect(getGenerativeModel).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ model: "gemini-2.5-pro" })
+    );
+    expect(getGenerativeModel).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ model: "gemini-2.5-flash-lite" })
+    );
+    expect(res._written).toContain(`data: ${JSON.stringify({ text: "Fallback OK" })}\n\n`);
   });
 
   // -------------------------------------------------------------------------

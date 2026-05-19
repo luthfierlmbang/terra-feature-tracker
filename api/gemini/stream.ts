@@ -3,10 +3,10 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { requireAuth } from "../_lib/auth-middleware.js";
 
-const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite";
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
 const ALLOWED_GEMINI_MODELS = new Set([
-  "gemini-3.1-flash-lite",
-  "gemini-3.1-pro",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-pro",
 ]);
 
 type Body = {
@@ -53,6 +53,10 @@ function buildMessageParts(userMessage: string, imageEvidence: Body["imageEviden
   return parts;
 }
 
+function isModelNotFoundError(message: string) {
+  return /404|not found|is not found|not supported for generateContent/i.test(message);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).end();
   const authed = await requireAuth(req, res);
@@ -75,9 +79,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const geminiModel = genAI.getGenerativeModel({ model: selectedModel, systemInstruction });
-    const chat = geminiModel.startChat({ history: history ?? [] });
-    const result = await chat.sendMessageStream(buildMessageParts(userMessage, imageEvidence) as any);
+    const messageParts = buildMessageParts(userMessage, imageEvidence) as any;
+    const streamWithModel = async (modelName: string) => {
+      const geminiModel = genAI.getGenerativeModel({ model: modelName, systemInstruction });
+      const chat = geminiModel.startChat({ history: history ?? [] });
+      return chat.sendMessageStream(messageParts);
+    };
+
+    let result;
+    try {
+      result = await streamWithModel(selectedModel);
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      if (selectedModel !== DEFAULT_GEMINI_MODEL && isModelNotFoundError(msg)) {
+        result = await streamWithModel(DEFAULT_GEMINI_MODEL);
+      } else {
+        throw e;
+      }
+    }
 
     for await (const chunk of result.stream) {
       const text = chunk.text();

@@ -127,19 +127,19 @@ describe("streamGemini — transport", () => {
     expect(body).toHaveProperty("systemInstruction");
     expect(body).toHaveProperty("userMessage", "fitur mana yang perlu design");
     expect(body).toHaveProperty("history");
-    expect(body).toHaveProperty("model", "gemini-3.1-flash-lite");
+    expect(body).toHaveProperty("model", "gemini-2.5-flash-lite");
     expect(Array.isArray(body.history)).toBe(true);
   });
 
   it("sends the selected AI model in request body", async () => {
     fetchMock.mockResolvedValue(mockSseResponse(["hello"]));
 
-    const gen = streamGemini("status fitur", [], undefined, [], "qa", [], "gemini-3.1-pro");
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", [], "gemini-2.5-pro");
     await collectGenerator(gen);
 
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(init.body);
-    expect(body).toHaveProperty("model", "gemini-3.1-pro");
+    expect(body).toHaveProperty("model", "gemini-2.5-pro");
   });
 
   it("sends uploaded feature images as imageEvidence in body", async () => {

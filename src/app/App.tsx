@@ -447,7 +447,7 @@ export default function App() {
     setAiModel(model);
     aiModelRef.current = model;
     persistConfig();
-    toast.success("AI model updated", model === "gemini-3.1-pro" ? "3.1 Pro is now active." : "3.1 Flash Lite is now active.");
+    toast.success("AI model updated", model === "gemini-2.5-pro" ? "2.5 Pro is now active." : "2.5 Flash Lite is now active.");
   }
 
   const hasActiveFilters =

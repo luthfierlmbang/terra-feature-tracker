@@ -202,7 +202,7 @@ describe("P4 — Bug Condition: streamGemini must NOT call googleapis.com direct
     );
 
     // Counterexample on unfixed code:
-    //   googleApisCalls = ["https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:streamGenerateContent?..."]
+    //   googleApisCalls = ["https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent?..."]
     expect(googleApisCalls).toHaveLength(0);
   });
 
