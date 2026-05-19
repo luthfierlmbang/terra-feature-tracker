@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AiAgentPanel } from "../../src/app/components/ai-agent-panel";
 import type { Feature } from "../../src/app/data/features";
+import { mockSseResponse } from "../helpers/mock-sse";
 
 vi.mock("../../src/app/components/toast", () => ({
   toast: {
@@ -113,5 +114,44 @@ describe("AiAgentPanel", () => {
     expect(screen.queryByText(/analisis visual/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Timer Blocker PRS/i)).not.toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("renders image references as plain text and hides raw markdown markers", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        mockSseResponse([
+          "![Screen 1 ketika timer PRS aktif](/api/gemini/files/screen-1.png)\n\n***Observasi Visual:*** Timer terlihat jelas.",
+        ])
+      )
+    );
+
+    const { container } = render(
+      <AiAgentPanel
+        features={[feature]}
+        types={undefined}
+        trainingEntries={[]}
+        aiModel="gemini-3-flash-preview"
+        userId="test-user"
+        onClose={vi.fn()}
+      />
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText('Tanya apa saja, e.g. "Fitur mana yang belum ada designnya?"'),
+      { target: { value: "kamu bisa jelasin ga screenshoot UI nya?" } }
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Screen 1 ketika timer PRS aktif")).toBeInTheDocument();
+      expect(screen.getByText(/Observasi Visual:/)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("link", { name: /Screen 1 ketika timer PRS aktif/i })).not.toBeInTheDocument();
+    expect(container.textContent).not.toContain("/api/gemini/files");
+    expect(container.textContent).not.toContain("***");
+
+    vi.unstubAllGlobals();
   });
 });

@@ -294,7 +294,7 @@ ${
 - **Format markdown** — pakai tabel untuk data komparatif, bullet untuk daftar, **bold** untuk angka kunci. Kalau jawaban singkat, paragraf biasa cukup.
 - **Kedalaman sesuai permintaan** — default tetap padat, tapi kalau user minta "detail", "analisa", "review", atau "evaluasi", jawab lebih lengkap dengan section seperti Verdict, Analisis UX, Analisis Bisnis & Proses, Risiko, Gap Evidence, Rekomendasi.
 - **Saat tidak tahu atau tidak yakin** — bilang apa adanya. Misal: "Datanya belum cukup buat menjawab itu" atau "Coba cek di tab Customize Types ya". Hindari respon kaku seperti "Maaf, informasi tersebut tidak tersedia dalam basis data saya."
-- **Saat membaca gambar** — rujuk gambar dengan label evidence-nya. Jangan mengaku melihat detail yang tidak tampak jelas; bedakan observasi visual dari inferensi.
+- **Saat membaca gambar** — rujuk gambar dengan label evidence-nya sebagai teks biasa. Jangan menulis URL, path backend, data URL, atau markdown image syntax seperti ![Screen](...). Jangan mengaku melihat detail yang tidak tampak jelas; bedakan observasi visual dari inferensi.
 - **Report/PDF** — jangan menulis byline seperti "Analisis Oleh", "Prepared by", atau nama analis. Langsung mulai dari isi laporan.
 `.trim();
   }
@@ -461,7 +461,7 @@ const APP_GREETING_REPLY =
   "Hai, aku bisa bantu cek data fitur, status desain, UX, evidence, dan action yang perlu ditindaklanjuti.";
 
 const IN_SCOPE_PATTERN =
-  /\b(feature|fitur|tracker|dashboard|design|desain|figma|ux|ui|product|produk|module|modul|squad|status|release|rilis|po|pic|research|riset|userflow|flow|laporan|report|summary|ringkasan|data|timer blocker|prs|screenshot|gambar|image|visual|evidence)\b/i;
+  /\b(feature|fitur|tracker|dashboard|design|desain|figma|ux|ui|product|produk|module|modul|squad|status|release|rilis|po|pic|research|riset|userflow|flow|laporan|report|summary|ringkasan|data|timer blocker|prs|screenshot|screenshoot|gambar|image|visual|evidence)\b/i;
 
 const SAFE_APP_META_PATTERN =
   /^(halo|hai|hi|hello|pagi|siang|sore|malam|help|bantuan|kamu siapa|apa yang bisa kamu bantu|bisa bantu apa)\b/i;
@@ -490,7 +490,7 @@ export function getOutOfScopeReply(
 }
 
 const IMAGE_ANALYSIS_PATTERN =
-  /\b(screenshot|gambar|image|visual|ui|ux|evidence|userflow|flow|figma|design|desain|mismatch|compare|comparison|bandingkan|analisa|analisis|review|evaluasi)\b/i;
+  /\b(screenshot|screenshoot|gambar|image|visual|ui|ux|evidence|userflow|flow|figma|design|desain|mismatch|compare|comparison|bandingkan|analisa|analisis|review|evaluasi)\b/i;
 
 function shouldSendImageEvidence(userMessage: string, mode: AgentMode): boolean {
   if (mode === "report" || mode === "summarize") return true;

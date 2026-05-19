@@ -63,39 +63,60 @@ const MODES: { key: AgentMode; label: string; icon: React.ReactNode; placeholder
 
 // ─── Inline Markdown Parser ───────────────────────────────────────────────────
 
+function sanitizeChatMarkdown(text: string) {
+  return text
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\((?:data:|blob:|\/api\/|\/_next\/|https?:\/\/[^)\s]*(?:localhost|127\.0\.0\.1|vercel\.app|firebase|googleapis|backend)[^)\s]*)[^)]*\)/gi, "$1");
+}
+
+function cleanPlainMarkdownText(text: string) {
+  return text.replace(/\*{2,3}/g, "");
+}
+
+function isSafeDisplayLink(href: string) {
+  return /^(https?:\/\/|mailto:)/i.test(href) && !/(localhost|127\.0\.0\.1|vercel\.app|firebase|googleapis|backend)/i.test(href);
+}
+
 function parseInline(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
-  const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))/g;
+  const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))/g;
   let lastIndex = 0;
   let match;
 
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+      parts.push(cleanPlainMarkdownText(text.slice(lastIndex, match.index)));
     }
     if (match[2] !== undefined) {
       parts.push(<strong key={match.index} className="font-semibold text-[#171717]">{match[2]}</strong>);
     } else if (match[3] !== undefined) {
-      parts.push(<em key={match.index} className="italic">{match[3]}</em>);
+      parts.push(<strong key={match.index} className="font-semibold text-[#171717]">{match[3]}</strong>);
     } else if (match[4] !== undefined) {
+      parts.push(<em key={match.index} className="italic">{match[4]}</em>);
+    } else if (match[5] !== undefined) {
       parts.push(
         <code
           key={match.index}
           className="rounded bg-[#f5f5f5] px-1.5 py-0.5 font-mono text-[12px] text-[#027479]"
         >
-          {match[4]}
+          {match[5]}
         </code>
       );
-    } else if (match[5] !== undefined && match[6] !== undefined) {
+    } else if (match[6] !== undefined && match[7] !== undefined) {
+      if (!isSafeDisplayLink(match[7])) {
+        parts.push(match[6]);
+        lastIndex = regex.lastIndex;
+        continue;
+      }
       parts.push(
         <a
           key={match.index}
-          href={match[6]}
+          href={match[7]}
           target="_blank"
           rel="noopener noreferrer"
           className="text-[#027479] underline hover:text-[#02878d]"
         >
-          {match[5]}
+          {match[6]}
         </a>
       );
     }
@@ -103,7 +124,7 @@ function parseInline(text: string): React.ReactNode[] {
   }
 
   if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
+    parts.push(cleanPlainMarkdownText(text.slice(lastIndex)));
   }
 
   return parts;
@@ -112,7 +133,7 @@ function parseInline(text: string): React.ReactNode[] {
 // ─── Full Markdown Block Renderer ─────────────────────────────────────────────
 
 function MarkdownText({ text }: { text: string }) {
-  const lines = text.split("\n");
+  const lines = sanitizeChatMarkdown(text).split("\n");
   const elements: React.ReactNode[] = [];
   let i = 0;
   let key = 0;

@@ -43,7 +43,7 @@ function buildMessageParts(userMessage: string, imageEvidence: Body["imageEviden
   if (safeImages.length > 0) {
     parts.push({
       text:
-        "Image evidence terlampir untuk dianalisis secara visual. Gunakan label berikut sebagai referensi, dan bedakan observasi visual dari inferensi.",
+        "Image evidence terlampir untuk dianalisis secara visual. Gunakan label berikut sebagai referensi teks biasa, jangan tulis URL/path backend/data URL/markdown image syntax, dan bedakan observasi visual dari inferensi.",
     });
   }
 
