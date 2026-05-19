@@ -4,6 +4,7 @@ import { UserAccount } from "../data/firestore-db";
 import { UiButton, Input, TextField } from "./primitives";
 import { toast } from "./toast";
 import { createUserViaApi, updateUserViaApi, deleteUserViaApi } from "../services/admin-api";
+import { AI_MODELS, DEFAULT_AI_MODEL, type AiModel } from "../services/gemini";
 
 // ─── Error parsing ────────────────────────────────────────────────────────────
 
@@ -31,8 +32,12 @@ function parseApiError(err: unknown): string {
 
 export function SettingsPage({
   users,
+  aiModel = DEFAULT_AI_MODEL,
+  onAiModelChange,
 }: {
   users: UserAccount[];
+  aiModel?: AiModel;
+  onAiModelChange?: (model: AiModel) => void;
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -159,9 +164,9 @@ export function SettingsPage({
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col gap-8 px-10 py-8">
+    <div className="flex flex-col gap-5 px-4 py-5 sm:px-6 md:gap-8 md:px-10 md:py-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
           <h2 style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 24, color: "#171717" }}>
             Settings &amp; User Management
@@ -170,14 +175,93 @@ export function SettingsPage({
             Manage the accounts that have access to this workspace.
           </p>
         </div>
-        <UiButton variant="primary" onClick={openAddModal}>
+        <UiButton variant="primary" onClick={openAddModal} className="w-full sm:w-auto">
           <Plus size={16} strokeWidth={2} className="mr-2" /> Add User
         </UiButton>
       </div>
 
+      {/* AI Model Settings */}
+      <section className="rounded-xl border border-[#e5e5e5] bg-white p-4 shadow-sm sm:p-6">
+        <div className="mb-5 flex flex-col gap-1">
+          <h3 className="text-[18px] font-semibold leading-7 text-[#171717]">
+            AI Model
+          </h3>
+          <p className="text-[14px] leading-5 text-[#525252]">
+            Pilih model yang dipakai Tepat AI untuk Q&A, analisis, summary, dan report.
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          {AI_MODELS.map((model) => {
+            const selected = aiModel === model.value;
+            return (
+              <button
+                key={model.value}
+                type="button"
+                onClick={() => onAiModelChange?.(model.value)}
+                className={`flex min-h-[120px] flex-col items-start rounded-lg border p-4 text-left transition-all ${
+                  selected
+                    ? "border-[#02878d] bg-[#f0fafb] shadow-[0_0_0_4px_rgba(2,135,141,0.08)]"
+                    : "border-[#e5e5e5] bg-[#fafafa] hover:border-[#02878d] hover:bg-white"
+                }`}
+              >
+                <div className="mb-3 flex w-full items-center justify-between gap-3">
+                  <span className="text-[15px] font-semibold text-[#171717]">
+                    {model.label}
+                  </span>
+                  <span
+                    className={`flex size-4 items-center justify-center rounded-full border ${
+                      selected ? "border-[#02878d] bg-[#02878d]" : "border-[#d4d4d4] bg-white"
+                    }`}
+                    aria-hidden
+                  >
+                    {selected && <span className="size-1.5 rounded-full bg-white" />}
+                  </span>
+                </div>
+                <p className="text-[13px] leading-5 text-[#525252]">
+                  {model.description}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       {/* Users Table — 3 columns: Name, Email, Actions */}
       <div className="overflow-hidden rounded-xl border border-[#e5e5e5] bg-white shadow-sm">
-        <table className="w-full text-left text-sm text-[#525252]">
+        <div className="divide-y divide-[#e5e5e5] md:hidden">
+          {users.map((u) => (
+            <div key={u.id} className="flex items-start justify-between gap-3 p-4">
+              <div className="min-w-0">
+                <p className="truncate text-[14px] font-semibold leading-5 text-[#171717]">{u.name}</p>
+                <p className="mt-1 truncate text-[13px] leading-5 text-[#525252]">{u.email}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  onClick={() => openEditModal(u)}
+                  className="rounded-md p-2 text-[#525252] transition-colors hover:bg-[#e5e5e5]"
+                  title="Edit Account"
+                >
+                  <Edit size={16} strokeWidth={1.5} />
+                </button>
+                <button
+                  onClick={() => {
+                    if (users.length <= 1) {
+                      toast.error("Cannot delete the last remaining user account.");
+                      return;
+                    }
+                    setDeleteTarget(u);
+                  }}
+                  className="rounded-md p-2 text-[#b42318] transition-colors hover:bg-[#fef3f2]"
+                  title="Delete Account"
+                >
+                  <Trash2 size={16} strokeWidth={1.5} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <table className="hidden w-full text-left text-sm text-[#525252] md:table">
           <thead className="border-b border-[#e5e5e5] bg-[#fafafa] font-medium text-[#171717]">
             <tr>
               <th className="px-6 py-4">Name</th>
@@ -281,7 +365,7 @@ export function SettingsPage({
               {error && (
                 <p className="text-sm font-medium text-red-600 bg-red-50 p-2 rounded">{error}</p>
               )}
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <UiButton variant="secondary" onClick={closeModals} fullWidth disabled={loading}>
                   Cancel
                 </UiButton>
@@ -361,7 +445,7 @@ export function SettingsPage({
               {error && (
                 <p className="text-sm font-medium text-red-600 bg-red-50 p-2 rounded">{error}</p>
               )}
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <UiButton variant="secondary" onClick={closeModals} fullWidth disabled={loading}>
                   Cancel
                 </UiButton>
@@ -426,7 +510,7 @@ export function SettingsPage({
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 px-6 pb-6">
+            <div className="grid grid-cols-1 gap-3 px-6 pb-6 sm:grid-cols-2">
               <UiButton
                 variant="secondary"
                 fullWidth

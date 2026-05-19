@@ -51,9 +51,9 @@ export function FeatureArticleView({
     <div className="flex h-full flex-col overflow-hidden bg-white">
       {/* Sticky Top Nav */}
       <div
-        className="flex shrink-0 items-center justify-between border-b border-[#e5e5e5] px-8 py-4 bg-white/80 backdrop-blur-md sticky top-0 z-10"
+        className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-[#e5e5e5] bg-white/80 px-4 py-3 backdrop-blur-md sm:px-6 md:px-8 md:py-4"
       >
-        <div className="flex items-center gap-4">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <button
             type="button"
             onClick={onClose}
@@ -62,7 +62,7 @@ export function FeatureArticleView({
           >
             <ArrowLeft size={18} strokeWidth={1.67} color="#525252" />
           </button>
-          <span style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 14, color: "#525252" }}>
+          <span className="hidden sm:inline" style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 14, color: "#525252" }}>
             Back to Dashboard
           </span>
         </div>
@@ -72,8 +72,8 @@ export function FeatureArticleView({
       </div>
 
       {/* Article Body */}
-      <div className="flex-1 overflow-y-auto px-8 py-12">
-        <article className="mx-auto max-w-3xl flex flex-col gap-12">
+      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 md:px-8 md:py-12">
+        <article className="mx-auto flex max-w-3xl flex-col gap-8 md:gap-12">
           
           {/* Header & Meta */}
           <header className="flex flex-col gap-6">
@@ -87,7 +87,7 @@ export function FeatureArticleView({
               )}
             </div>
             
-            <h1 style={{ fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 32, lineHeight: "40px", color: "#171717", letterSpacing: "-0.02em" }}>
+            <h1 className="text-[26px] leading-[34px] md:text-[32px] md:leading-[40px]" style={{ fontFamily: "Inter, sans-serif", fontWeight: 700, color: "#171717", letterSpacing: "-0.02em" }}>
               {feature.name}
             </h1>
             
@@ -133,8 +133,8 @@ export function FeatureArticleView({
           <section className="flex flex-col gap-4">
             <SectionTitle>Impact to Business</SectionTitle>
             {feature.businessImpacts && feature.businessImpacts.length > 0 ? (
-              <div className="overflow-hidden rounded-xl border border-[#e5e5e5] bg-white shadow-sm">
-                <table className="w-full text-left text-sm text-[#525252]">
+              <div className="overflow-x-auto rounded-xl border border-[#e5e5e5] bg-white shadow-sm">
+                <table className="min-w-[560px] w-full text-left text-sm text-[#525252]">
                   <thead className="border-b border-[#e5e5e5] bg-[#fafafa] font-medium text-[#171717]">
                     <tr>
                       <th className="px-4 py-3">Impact Area</th>

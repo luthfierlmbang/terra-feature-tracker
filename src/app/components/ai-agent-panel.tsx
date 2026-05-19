@@ -18,6 +18,7 @@ import {
 import {
   streamGemini,
   type AgentMode,
+  type AiModel,
   type ChatMessage,
 } from "../services/gemini";
 import type { Feature } from "../data/features";
@@ -762,12 +763,14 @@ export function AiAgentPanel({
   features,
   types,
   trainingEntries = [],
+  aiModel,
   userId,
   onClose,
 }: {
   features: Feature[];
   types?: any;
   trainingEntries?: AiTrainingEntry[];
+  aiModel: AiModel;
   userId: string;
   onClose: () => void;
 }) {
@@ -916,7 +919,8 @@ export function AiAgentPanel({
         types,
         trainingEntries,
         mode,
-        messages.slice(-10)
+        messages.slice(-10),
+        aiModel
       );
       let fullText = "";
 
@@ -989,7 +993,8 @@ export function AiAgentPanel({
         types,
         trainingEntries,
         "report",
-        messages.slice(-10)
+        messages.slice(-10),
+        aiModel
       );
       let fullText = "";
 

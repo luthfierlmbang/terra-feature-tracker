@@ -201,8 +201,8 @@ export function CustomizeTypes({
             </p>
           </div>
 
-          <div className="flex items-end gap-2 border-b border-[#e5e5e5] p-5">
-            <div className="flex-1">
+          <div className="grid grid-cols-1 gap-2 border-b border-[#e5e5e5] p-4 sm:p-5 md:flex md:items-end">
+            <div className="min-w-0 flex-1">
               <Input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -216,7 +216,7 @@ export function CustomizeTypes({
               />
             </div>
             {isSquad && (
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <Input
                   value={draftOwner}
                   onChange={(e) => setDraftOwner(e.target.value)}
@@ -225,7 +225,7 @@ export function CustomizeTypes({
               </div>
             )}
             {isModule && (
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <Select
                   value={draftModuleSquad}
                   onChange={(val) => setDraftModuleSquad(val)}
@@ -241,10 +241,10 @@ export function CustomizeTypes({
 
           <ul className="divide-y divide-[#f3f4f6]">
             {list.map((item) => (
-              <li key={item} className="flex items-center justify-between px-5 py-3">
+              <li key={item} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                 {editingItem === item ? (
-                  <div className="flex w-full items-center gap-2">
-                    <div className="flex-1">
+                  <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:items-center">
+                    <div className="min-w-0 flex-1">
                       <Input
                         value={editDraft}
                         onChange={(e) => setEditDraft(e.target.value)}
@@ -260,7 +260,7 @@ export function CustomizeTypes({
                       />
                     </div>
                     {isSquad && (
-                      <div className="flex-1">
+                      <div className="min-w-0 flex-1">
                         <Input
                           value={editOwnerDraft}
                           onChange={(e) => setEditOwnerDraft(e.target.value)}
@@ -269,7 +269,7 @@ export function CustomizeTypes({
                       </div>
                     )}
                     {isModule && (
-                      <div className="flex-1">
+                      <div className="min-w-0 flex-1">
                         <Select
                           value={editModuleSquadDraft}
                           onChange={(val) => setEditModuleSquadDraft(val)}
@@ -293,7 +293,7 @@ export function CustomizeTypes({
                   </div>
                 ) : (
                   <>
-                    <div className="flex flex-col gap-0.5">
+                    <div className="min-w-0 flex flex-col gap-0.5">
                       <span style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 14, lineHeight: "20px", color: "#171717" }}>
                         {item}
                       </span>

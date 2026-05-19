@@ -16,6 +16,7 @@ import {
 import { db } from "./firebase";
 import type { Feature } from "./features";
 import type { TypesState } from "../components/customize-types";
+import { DEFAULT_AI_MODEL, isAiModel, type AiModel } from "../services/gemini";
 import {
   INITIAL_FEATURES,
   FEATURE_STATUSES,
@@ -73,6 +74,10 @@ const configDoc = () =>
 const usersCol = () =>
   collection(db, "workspaces", WORKSPACE_ID, "users");
 
+function toAiModel(value: unknown): AiModel {
+  return isAiModel(value) ? value : DEFAULT_AI_MODEL;
+}
+
 // ─── Features CRUD ────────────────────────────────────────────────────────────
 
 export async function fetchFeatures(): Promise<Feature[]> {
@@ -116,6 +121,7 @@ export async function fetchConfig(): Promise<{
   types: TypesState;
   squadOwners: Record<string, string>;
   moduleSquads: Record<string, string>;
+  aiModel: AiModel;
 }> {
   const snap = await getDoc(configDoc());
   if (snap.exists()) {
@@ -124,12 +130,14 @@ export async function fetchConfig(): Promise<{
       types: { ...INITIAL_TYPES, ...(data.types || {}) },
       squadOwners: { ...INITIAL_SQUAD_OWNERS, ...(data.squadOwners || {}) },
       moduleSquads: { ...INITIAL_MODULE_SQUADS, ...(data.moduleSquads || {}) },
+      aiModel: toAiModel(data.aiModel),
     };
   }
   return {
     types: INITIAL_TYPES,
     squadOwners: INITIAL_SQUAD_OWNERS,
     moduleSquads: INITIAL_MODULE_SQUADS,
+    aiModel: DEFAULT_AI_MODEL,
   };
 }
 
@@ -137,6 +145,7 @@ export async function saveConfig(config: {
   types: TypesState;
   squadOwners: Record<string, string>;
   moduleSquads: Record<string, string>;
+  aiModel?: AiModel;
 }): Promise<void> {
   await setDoc(configDoc(), config, { merge: true });
 }
@@ -154,6 +163,7 @@ export async function ensureConfigExists(): Promise<void> {
       types: INITIAL_TYPES,
       squadOwners: INITIAL_SQUAD_OWNERS,
       moduleSquads: INITIAL_MODULE_SQUADS,
+      aiModel: DEFAULT_AI_MODEL,
     });
   } else {
     // Config exists but may be missing keys — repair with merge
@@ -180,6 +190,7 @@ export function subscribeToConfig(
     types: TypesState;
     squadOwners: Record<string, string>;
     moduleSquads: Record<string, string>;
+    aiModel: AiModel;
   }) => void
 ): () => void {
   return onSnapshot(configDoc(), (snap) => {
@@ -189,6 +200,7 @@ export function subscribeToConfig(
         types: { ...INITIAL_TYPES, ...(data.types || {}) },
         squadOwners: { ...INITIAL_SQUAD_OWNERS, ...(data.squadOwners || {}) },
         moduleSquads: { ...INITIAL_MODULE_SQUADS, ...(data.moduleSquads || {}) },
+        aiModel: toAiModel(data.aiModel),
       });
     } else {
       // Document doesn't exist yet — return initial defaults
@@ -196,6 +208,7 @@ export function subscribeToConfig(
         types: INITIAL_TYPES,
         squadOwners: INITIAL_SQUAD_OWNERS,
         moduleSquads: INITIAL_MODULE_SQUADS,
+        aiModel: DEFAULT_AI_MODEL,
       });
     }
   });

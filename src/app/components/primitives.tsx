@@ -10,6 +10,7 @@ export function UiButton({
   type = "button",
   disabled,
   fullWidth,
+  className = "",
 }: {
   variant?: "primary" | "secondary" | "ghost" | "danger";
   size?: "sm" | "md";
@@ -20,6 +21,7 @@ export function UiButton({
   type?: "button" | "submit";
   disabled?: boolean;
   fullWidth?: boolean;
+  className?: string;
 }) {
   const padding = size === "sm" ? "px-2.5 py-1.5" : "px-3 py-2";
 
@@ -53,7 +55,7 @@ export function UiButton({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg ${padding} disabled:opacity-50 ${fullWidth ? "w-full" : ""}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-lg ${padding} disabled:opacity-50 ${fullWidth ? "w-full" : ""} ${className}`}
       style={{
         fontFamily: "Inter, sans-serif",
         fontWeight: 600,

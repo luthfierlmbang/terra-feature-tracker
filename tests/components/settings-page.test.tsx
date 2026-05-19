@@ -91,10 +91,30 @@ describe("SettingsPage", () => {
       const users = makeUsers();
       render(<SettingsPage users={users} />);
 
-      expect(screen.getByText("Alice")).toBeInTheDocument();
-      expect(screen.getByText("alice@example.com")).toBeInTheDocument();
-      expect(screen.getByText("Bob")).toBeInTheDocument();
-      expect(screen.getByText("bob@example.com")).toBeInTheDocument();
+      expect(screen.getAllByText("Alice").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("alice@example.com").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Bob").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("bob@example.com").length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("AI model settings", () => {
+    it("renders model choices and calls onAiModelChange", () => {
+      const onAiModelChange = vi.fn();
+      render(
+        <SettingsPage
+          users={makeUsers()}
+          aiModel="gemini-3.1-flash-lite"
+          onAiModelChange={onAiModelChange}
+        />
+      );
+
+      expect(screen.getByText("AI Model")).toBeInTheDocument();
+      expect(screen.getByText("3.1 Flash Lite")).toBeInTheDocument();
+      expect(screen.getByText("3.1 Pro")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /3.1 Pro/i }));
+      expect(onAiModelChange).toHaveBeenCalledWith("gemini-3.1-pro");
     });
   });
 
@@ -247,7 +267,7 @@ describe("SettingsPage", () => {
       ];
       render(<SettingsPage users={singleUser} />);
 
-      const deleteButton = screen.getByTitle("Delete Account");
+      const deleteButton = screen.getAllByTitle("Delete Account")[0];
       fireEvent.click(deleteButton);
 
       expect(mockToastError).toHaveBeenCalledWith(

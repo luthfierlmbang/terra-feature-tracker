@@ -145,11 +145,11 @@ export function AiTrainingPage({
 
   return (
     <div
-      className="flex h-full flex-col gap-8 overflow-y-auto px-10 py-8"
+      className="flex h-full flex-col gap-5 overflow-y-auto px-4 py-5 sm:px-6 md:gap-8 md:px-10 md:py-8"
       style={{ fontFamily: "Inter, sans-serif" }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
           <h2
             style={{
@@ -175,7 +175,7 @@ export function AiTrainingPage({
             Kelola knowledge base untuk melatih Tepat AI agar lebih kontekstual dan akurat.
           </p>
         </div>
-        <UiButton variant="primary" leadingIcon={<Plus size={16} strokeWidth={2} />} onClick={openAdd}>
+        <UiButton variant="primary" leadingIcon={<Plus size={16} strokeWidth={2} />} onClick={openAdd} className="w-full sm:w-auto">
           Add Knowledge
         </UiButton>
       </div>
@@ -215,7 +215,7 @@ export function AiTrainingPage({
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {AI_TRAINING_CATEGORIES.map((cat, idx) => {
           const isActive = activeCategory === cat.key;
           return (

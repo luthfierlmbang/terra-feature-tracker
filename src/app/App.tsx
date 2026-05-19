@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { Plus, Bot } from "lucide-react";
 import { AiAgentPanel } from "./components/ai-agent-panel";
-import { Sidebar, type NavKey } from "./components/sidebar";
+import { MobileNav, Sidebar, type NavKey } from "./components/sidebar";
 import { SummaryCards } from "./components/summary-cards";
 import { EMPTY_FILTERS, FilterBar, type FilterState } from "./components/filter-bar";
 import { FeatureTable } from "./components/feature-table";
@@ -42,6 +42,7 @@ import {
   type Feature,
   type ActionNeeded,
 } from "./data/features";
+import { DEFAULT_AI_MODEL, type AiModel } from "./services/gemini";
 
 const INITIAL_TYPES: TypesState = {
   featureStatus: FEATURE_STATUSES,
@@ -124,6 +125,7 @@ export default function App() {
   const [types, setTypes] = useState<TypesState>(INITIAL_TYPES);
   const [squadOwners, setSquadOwners] = useState<Record<string, string>>(INITIAL_SQUAD_OWNERS);
   const [moduleSquads, setModuleSquads] = useState<Record<string, string>>(INITIAL_MODULE_SQUADS);
+  const [aiModel, setAiModel] = useState<AiModel>(DEFAULT_AI_MODEL);
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<Feature | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -136,9 +138,11 @@ export default function App() {
   const typesRef = useRef(types);
   const squadOwnersRef = useRef(squadOwners);
   const moduleSquadsRef = useRef(moduleSquads);
+  const aiModelRef = useRef(aiModel);
   useEffect(() => { typesRef.current = types; }, [types]);
   useEffect(() => { squadOwnersRef.current = squadOwners; }, [squadOwners]);
   useEffect(() => { moduleSquadsRef.current = moduleSquads; }, [moduleSquads]);
+  useEffect(() => { aiModelRef.current = aiModel; }, [aiModel]);
 
   // Debounced config persist — batches rapid successive calls into one write
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -149,6 +153,7 @@ export default function App() {
         types: typesRef.current,
         squadOwners: squadOwnersRef.current,
         moduleSquads: moduleSquadsRef.current,
+        aiModel: aiModelRef.current,
       }).catch((err) => console.error("Failed to save config:", err));
     }, 100);
   }
@@ -193,10 +198,11 @@ export default function App() {
     );
 
     const unsubFeatures = subscribeToFeatures(setFeatures);
-    const unsubConfig = subscribeToConfig(({ types: t, squadOwners: so, moduleSquads: ms }) => {
+    const unsubConfig = subscribeToConfig(({ types: t, squadOwners: so, moduleSquads: ms, aiModel: model }) => {
       setTypes(t);
       setSquadOwners(so);
       setModuleSquads(ms);
+      setAiModel(model);
     });
     const unsubUsers = subscribeToUsers((loadedUsers) => {
       setUsers(loadedUsers);
@@ -437,6 +443,13 @@ export default function App() {
     persistConfig();
   }
 
+  function handleAiModelChange(model: AiModel) {
+    setAiModel(model);
+    aiModelRef.current = model;
+    persistConfig();
+    toast.success("AI model updated", model === "gemini-3.1-pro" ? "3.1 Pro is now active." : "3.1 Flash Lite is now active.");
+  }
+
   const hasActiveFilters =
     Boolean(filters.squad) || Boolean(filters.year) || Boolean(filters.featureStatus) || filters.search.length > 0;
 
@@ -524,23 +537,25 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-[#f5f5f5] p-4" style={{ fontFamily: "Inter, sans-serif" }}>
-      <div className="flex h-full w-full gap-4">
-        <Sidebar
-          active={activeNav}
-          onChange={(k) => { setActiveNav(k); setFilters(EMPTY_FILTERS); setActiveForm(null); setViewingFeature(null); }}
-          onLogout={() => {
-            toast.loading("Logging out...");
-            signOut(auth);
-          }}
-          user={user}
-        />
+    <div className="flex h-[100dvh] w-full bg-[#f5f5f5] p-0 md:p-4" style={{ fontFamily: "Inter, sans-serif" }}>
+      <div className="flex h-full w-full gap-0 md:gap-4">
+        <div className="hidden md:flex">
+          <Sidebar
+            active={activeNav}
+            onChange={(k) => { setActiveNav(k); setFilters(EMPTY_FILTERS); setActiveForm(null); setViewingFeature(null); }}
+            onLogout={() => {
+              toast.loading("Logging out...");
+              signOut(auth);
+            }}
+            user={user}
+          />
+        </div>
 
         <main
-          className="flex h-full flex-1 flex-col overflow-hidden rounded-xl border border-[#e5e5e5] bg-white"
+          className="flex h-full min-w-0 flex-1 flex-col overflow-hidden border border-transparent bg-white md:rounded-xl md:border-[#e5e5e5]"
           style={{ boxShadow: "0 1px 1px rgba(0,0,0,0.05)" }}
         >
-          <div className={activeForm || viewingFeature ? "flex h-full flex-col overflow-hidden" : "flex-1 overflow-y-auto"}>
+          <div className={activeForm || viewingFeature ? "flex h-full flex-col overflow-hidden pb-[76px] md:pb-0" : "flex-1 overflow-y-auto pb-[76px] md:pb-0"}>
             {activeForm && (
               <FeatureFormPage
                 initialData={activeForm.feature}
@@ -571,15 +586,15 @@ export default function App() {
                 {activeNav === "dashboard" && (
                   <div className="animate-fade-in h-full flex flex-col">
                     {hasLocalData && (
-                      <div className="mx-6 mt-6 flex items-center justify-between rounded-xl bg-amber-50 border border-amber-200 p-4 text-amber-900 shadow-sm animate-fade-in">
-                        <div className="flex items-center gap-3">
+                      <div className="mx-4 mt-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-sm animate-fade-in sm:mx-6 sm:mt-6 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
                           <span className="text-xl">📦</span>
                           <div>
                             <h4 className="font-semibold text-sm">Data Lokal Lama Terdeteksi!</h4>
                             <p className="text-xs text-amber-700">Kami menemukan data fitur lama Anda di browser ini. Apakah Anda ingin mengimpornya ke cloud Firebase?</p>
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row">
                           <button 
                             onClick={async () => {
                               setIsSaving(true);
@@ -594,13 +609,13 @@ export default function App() {
                                 setIsSaving(false);
                               }
                             }}
-                            className="rounded-lg bg-amber-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-amber-700 transition"
+                            className="rounded-lg bg-amber-600 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-amber-700"
                           >
                             Migrasi Sekarang
                           </button>
                           <button 
                             onClick={() => setHasLocalData(false)}
-                            className="rounded-lg border border-amber-300 bg-white px-3.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 transition"
+                            className="rounded-lg border border-amber-300 bg-white px-3.5 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50"
                           >
                             Abaikan
                           </button>
@@ -627,7 +642,7 @@ export default function App() {
                 )}
 
                 {activeNav === "customize" && (
-                  <div className="px-10 py-8 animate-fade-in h-full">
+                  <div className="h-full animate-fade-in overflow-y-auto px-4 py-5 sm:px-6 md:px-10 md:py-8">
                     <CustomizeTypes
                       types={types}
                       onChange={(newTypes) => {
@@ -646,8 +661,12 @@ export default function App() {
                 )}
 
                 {activeNav === "settings" && (
-                  <div className="animate-fade-in h-full">
-                    <SettingsPage users={users} />
+                  <div className="animate-fade-in h-full overflow-y-auto">
+                    <SettingsPage
+                      users={users}
+                      aiModel={aiModel}
+                      onAiModelChange={handleAiModelChange}
+                    />
                   </div>
                 )}
 
@@ -668,12 +687,18 @@ export default function App() {
               features={activeFeatures}
               types={types}
               trainingEntries={aiTrainingEntries}
+              aiModel={aiModel}
               userId={firebaseUser.uid}
               onClose={() => setShowAiPanel(false)}
             />
           </ResizableAiPanel>
         )}
       </div>
+
+      <MobileNav
+        active={activeNav}
+        onChange={(k) => { setActiveNav(k); setFilters(EMPTY_FILTERS); setActiveForm(null); setViewingFeature(null); }}
+      />
 
       {deleteTarget && (
         <DeleteDialog
@@ -745,13 +770,13 @@ function ResizableAiPanel({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="relative flex h-full shrink-0 overflow-hidden rounded-xl border border-[#e5e5e5]"
-      style={{ width, boxShadow: "0 1px 1px rgba(0,0,0,0.05)" }}
+      className="fixed inset-0 z-50 flex h-[100dvh] w-screen overflow-hidden border border-[#e5e5e5] bg-white md:relative md:z-auto md:h-full md:w-[var(--ai-panel-width)] md:shrink-0 md:rounded-xl"
+      style={{ "--ai-panel-width": `${width}px`, boxShadow: "0 1px 1px rgba(0,0,0,0.05)" } as React.CSSProperties}
     >
       {/* Drag handle on the left edge */}
       <div
         onMouseDown={onMouseDown}
-        className="group absolute left-0 top-0 z-10 flex h-full w-1.5 cursor-col-resize items-center justify-center hover:bg-[#02878d]/10"
+        className="group absolute left-0 top-0 z-10 hidden h-full w-1.5 cursor-col-resize items-center justify-center hover:bg-[#02878d]/10 md:flex"
         title="Drag to resize"
         style={{ marginLeft: -3 }}
       >
@@ -794,8 +819,8 @@ function DashboardView({
   onToggleAi: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-8 px-10 py-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="flex flex-col gap-5 px-4 py-5 sm:px-6 md:gap-8 md:px-10 md:py-8">
+      <div className="flex flex-col items-start justify-between gap-4 lg:flex-row">
         <div className="flex max-w-[640px] flex-col gap-2">
           <h1
             style={{
@@ -814,10 +839,10 @@ function DashboardView({
             Research.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <button
             onClick={onToggleAi}
-            className={`relative flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium press-down transition-all duration-200 ${
+            className={`press-down relative flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200 sm:w-auto ${
               showAiPanel
                 ? "border-[#02878d] bg-[#f0fafb] text-[#02878d]"
                 : "border-[#e5e5e5] bg-white text-[#404040] hover:border-[#02878d] hover:text-[#02878d] hover:shadow-[0_0_0_4px_rgba(2,116,121,0.08)]"
@@ -835,7 +860,7 @@ function DashboardView({
             </span>
             Tepat AI
           </button>
-          <UiButton variant="primary" leadingIcon={<Plus size={18} strokeWidth={1.67} color="#fff" />} onClick={onAdd}>
+          <UiButton variant="primary" leadingIcon={<Plus size={18} strokeWidth={1.67} color="#fff" />} onClick={onAdd} className="w-full sm:w-auto">
             Add feature
           </UiButton>
         </div>

@@ -266,6 +266,66 @@ describe("api/gemini/stream — handler", () => {
     expect(written[2]).toBe("event: done\ndata: {}\n\n");
   });
 
+  it("uses the selected 3.1 Pro model when provided", async () => {
+    async function* mockStream() {
+      yield { text: () => "OK" };
+    }
+
+    const sendMessageStream = vi.fn().mockResolvedValue({ stream: mockStream() });
+    const { GoogleGenerativeAI, getGenerativeModel } = makeGeminiMock({ sendMessageStream });
+
+    vi.doMock("../../../api/_lib/auth-middleware", () => ({
+      requireAuth: vi.fn().mockResolvedValue({ uid: "u1", email: "u@test.com" }),
+    }));
+    vi.doMock("@google/generative-ai", () => ({ GoogleGenerativeAI }));
+
+    const { default: handler } = await import("../../../api/gemini/stream");
+    const req = makeReq({
+      body: {
+        userMessage: "Hi",
+        systemInstruction: "Be helpful.",
+        model: "gemini-3.1-pro",
+      },
+    });
+    const res = makeRes();
+
+    await handler(req, res);
+
+    expect(getGenerativeModel).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gemini-3.1-pro" })
+    );
+  });
+
+  it("falls back to Flash Lite when an unsupported model is provided", async () => {
+    async function* mockStream() {
+      yield { text: () => "OK" };
+    }
+
+    const sendMessageStream = vi.fn().mockResolvedValue({ stream: mockStream() });
+    const { GoogleGenerativeAI, getGenerativeModel } = makeGeminiMock({ sendMessageStream });
+
+    vi.doMock("../../../api/_lib/auth-middleware", () => ({
+      requireAuth: vi.fn().mockResolvedValue({ uid: "u1", email: "u@test.com" }),
+    }));
+    vi.doMock("@google/generative-ai", () => ({ GoogleGenerativeAI }));
+
+    const { default: handler } = await import("../../../api/gemini/stream");
+    const req = makeReq({
+      body: {
+        userMessage: "Hi",
+        systemInstruction: "Be helpful.",
+        model: "gemini-unknown",
+      },
+    });
+    const res = makeRes();
+
+    await handler(req, res);
+
+    expect(getGenerativeModel).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gemini-3.1-flash-lite" })
+    );
+  });
+
   // -------------------------------------------------------------------------
   // 6. Error path: SDK throws → event: error record in response
   // -------------------------------------------------------------------------

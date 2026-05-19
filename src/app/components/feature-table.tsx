@@ -161,8 +161,66 @@ export function FeatureTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse">
+    <>
+      <div className="flex flex-col divide-y divide-[#e5e5e5] md:hidden">
+        {features.map((f, idx) => (
+          <article
+            key={f.id}
+            className="animate-slide-up bg-white px-4 py-4"
+            style={{ animationDelay: `${Math.min(idx * 35, 350)}ms` }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => onView(f)}
+                className="min-w-0 flex-1 text-left"
+              >
+                <p className="truncate text-[14px] font-semibold leading-5 text-[#171717]">
+                  {f.name}
+                </p>
+                <p className="mt-1 truncate text-[12px] leading-[18px] text-[#737373]">
+                  {[f.module, f.squad].filter(Boolean).join(" · ") || "No module"}
+                </p>
+              </button>
+              <RowMenu
+                onView={() => onView(f)}
+                onEdit={() => onEdit(f)}
+                onDelete={onDelete ? () => onDelete(f) : undefined}
+              />
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <FeatureStatusBadge value={f.featureStatus} />
+              <FigmaBadge value={f.figmaAvailable} />
+              {f.figmaLink && (
+                <a
+                  href={f.figmaLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-full border border-[#c8e6e7] bg-[#f0fafb] px-2 py-0.5 text-[12px] font-medium text-[#027479]"
+                >
+                  <ExternalLink size={12} strokeWidth={1.67} />
+                  Link
+                </a>
+              )}
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-[#fafafa] p-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase leading-4 text-[#737373]">Owner</p>
+                <p className="truncate text-[13px] leading-5 text-[#171717]">{f.poPic || "—"}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase leading-4 text-[#737373]">Updated</p>
+                <p className="truncate text-[13px] leading-5 text-[#171717]">{formatDate(f.lastUpdated)}</p>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full border-collapse">
         <thead>
           <tr className="bg-[#fafafa]">
             <th className="border-b border-[#e5e5e5] px-4 py-3 text-left w-10" style={HEADER_STYLE}>#</th>
@@ -220,7 +278,8 @@ export function FeatureTable({
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+        </table>
+      </div>
+    </>
   );
 }

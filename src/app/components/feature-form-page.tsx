@@ -137,7 +137,7 @@ function ScreenItem({
         />
       </TextField>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <span style={{ fontFamily: "Inter, sans-serif", fontWeight: 500, fontSize: 13, color: "#171717" }}>
             UI Existing
@@ -260,7 +260,7 @@ function ImpactUploader({
           >
             <X size={16} strokeWidth={2} />
           </button>
-          <div className="grid grid-cols-2 gap-4 pt-2">
+          <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2">
             <TextField label="Impact Area">
               <Input
                 value={impact.area}
@@ -447,10 +447,10 @@ export function FeatureFormPage({
     <div className="flex h-full flex-col overflow-hidden">
       {/* Sticky header */}
       <div
-        className="flex shrink-0 items-center justify-between border-b border-[#e5e5e5] bg-white px-8 py-4"
+        className="flex shrink-0 flex-col gap-3 border-b border-[#e5e5e5] bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 md:px-8"
         style={{ boxShadow: "0 1px 0 #e5e5e5" }}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
             onClick={onCancel}
@@ -460,7 +460,7 @@ export function FeatureFormPage({
           >
             <ArrowLeft size={16} strokeWidth={1.67} color="#525252" />
           </button>
-          <div className="flex flex-col gap-0.5">
+          <div className="min-w-0 flex flex-col gap-0.5">
             <span
               style={{
                 fontFamily: "Inter, sans-serif",
@@ -485,7 +485,7 @@ export function FeatureFormPage({
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:items-center">
           <UiButton variant="secondary" onClick={onCancel} disabled={isSaving}>
             Cancel
           </UiButton>
@@ -496,7 +496,7 @@ export function FeatureFormPage({
       </div>
 
       {/* Scrollable form body */}
-      <div className="flex-1 overflow-y-auto px-8 py-8">
+      <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 md:px-8 md:py-8">
         <div className="mx-auto max-w-2xl">
           <form
             className="flex flex-col gap-8"
@@ -508,7 +508,7 @@ export function FeatureFormPage({
             {/* Feature information */}
             <section className="flex flex-col gap-4">
               <SectionTitle>Feature information</SectionTitle>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <TextField label="Squad">
                   <Select
                     value={form.squad}
@@ -544,7 +544,7 @@ export function FeatureFormPage({
                   placeholder="Briefly describe what this feature does..."
                 />
               </TextField>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <TextField label="PO / PIC" required error={errors.poPic}>
                   <Input value={form.poPic} onChange={(e) => set("poPic", e.target.value)} placeholder="Auto-filled by Squad" disabled className="bg-[#f5f5f5] text-[#737373] cursor-not-allowed" />
                 </TextField>
@@ -572,7 +572,7 @@ export function FeatureFormPage({
             {/* Design information */}
             <section className="flex flex-col gap-4">
               <SectionTitle>Design information</SectionTitle>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <TextField label="Design source" required error={errors.designSource}>
                   <Select value={form.designSource} onChange={(v) => set("designSource", v as DesignSource)} options={designSources} />
                 </TextField>
@@ -596,7 +596,7 @@ export function FeatureFormPage({
             {/* Research & follow-up */}
             <section className="flex flex-col gap-4">
               <SectionTitle>Research & follow-up</SectionTitle>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <TextField label="Research needed">
                   <Select value={form.researchNeeded} onChange={(v) => set("researchNeeded", v as YesNoMaybe)} options={YES_NO_MAYBE} placeholder="Select" />
                 </TextField>

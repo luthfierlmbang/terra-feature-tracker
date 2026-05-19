@@ -61,6 +61,7 @@ describe("AiAgentPanel", () => {
         features={[feature]}
         types={undefined}
         trainingEntries={[]}
+        aiModel="gemini-3.1-flash-lite"
         userId="test-user"
         onClose={vi.fn()}
       />
@@ -91,6 +92,7 @@ describe("AiAgentPanel", () => {
         features={[feature]}
         types={undefined}
         trainingEntries={[]}
+        aiModel="gemini-3.1-flash-lite"
         userId="test-user"
         onClose={vi.fn()}
       />
@@ -104,7 +106,7 @@ describe("AiAgentPanel", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Hai, aku bisa bantu cek data fitur, status desain, Figma, UX, dan action yang perlu ditindaklanjuti.")
+        screen.getByText("Hai, aku bisa bantu cek data fitur, status desain, UX, evidence, dan action yang perlu ditindaklanjuti.")
       ).toBeInTheDocument();
     });
 

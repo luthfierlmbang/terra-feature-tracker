@@ -127,7 +127,19 @@ describe("streamGemini — transport", () => {
     expect(body).toHaveProperty("systemInstruction");
     expect(body).toHaveProperty("userMessage", "fitur mana yang perlu design");
     expect(body).toHaveProperty("history");
+    expect(body).toHaveProperty("model", "gemini-3.1-flash-lite");
     expect(Array.isArray(body.history)).toBe(true);
+  });
+
+  it("sends the selected AI model in request body", async () => {
+    fetchMock.mockResolvedValue(mockSseResponse(["hello"]));
+
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", [], "gemini-3.1-pro");
+    await collectGenerator(gen);
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body).toHaveProperty("model", "gemini-3.1-pro");
   });
 
   it("sends uploaded feature images as imageEvidence in body", async () => {
@@ -280,7 +292,7 @@ describe("streamGemini — transport", () => {
     );
 
     await expect(collectGenerator(gen)).resolves.toEqual([
-      "Hai, aku bisa bantu cek data fitur, status desain, Figma, UX, dan action yang perlu ditindaklanjuti.",
+      "Hai, aku bisa bantu cek data fitur, status desain, UX, evidence, dan action yang perlu ditindaklanjuti.",
     ]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -362,6 +374,8 @@ describe("buildSystemInstruction — analysis context", () => {
     expect(prompt).toContain("Jangan menonjolkan persona");
     expect(prompt).toContain("Jawab sesuai intensi");
     expect(prompt).toContain("Analisis lengkap hanya saat diminta");
+    expect(prompt).toContain("Figma bukan fokus default");
+    expect(prompt).toContain("jangan sering menyebut Figma");
     expect(prompt).toContain("Batas Konteks");
     expect(prompt).toContain("inisiatif menolak dengan singkat");
     expect(prompt).toContain("jangan mengaitkan paksa ke fitur");
@@ -380,6 +394,8 @@ describe("buildSystemInstruction — analysis context", () => {
     expect(prompt).toContain("hasExistingUi");
     expect(prompt).toContain("hasImage");
     expect(prompt).toContain("releasedWithDesignMismatch");
+    expect(prompt).not.toContain("releasedWithoutFigma");
+    expect(prompt).not.toContain("withoutFigma");
   });
 });
 
@@ -409,7 +425,7 @@ describe("getOutOfScopeReply", () => {
 
   it("returns a local greeting for simple app greetings", () => {
     expect(getOutOfScopeReply("hai tepat")).toBe(
-      "Hai, aku bisa bantu cek data fitur, status desain, Figma, UX, dan action yang perlu ditindaklanjuti."
+      "Hai, aku bisa bantu cek data fitur, status desain, UX, evidence, dan action yang perlu ditindaklanjuti."
     );
   });
 

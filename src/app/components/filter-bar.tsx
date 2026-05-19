@@ -27,11 +27,11 @@ function MiniSelect({
 }) {
   const isActive = value !== "";
   return (
-    <div className="relative">
+    <div className="relative w-full sm:w-auto">
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-9 appearance-none rounded-lg border bg-white pl-3 pr-8 outline-none focus:border-[#02878d] focus:ring-4 focus:ring-[#f4ebff]"
+        className="h-9 w-full appearance-none rounded-lg border bg-white pl-3 pr-8 outline-none focus:border-[#02878d] focus:ring-4 focus:ring-[#f4ebff] sm:w-auto"
         style={{
           fontFamily: "Inter, sans-serif",
           fontWeight: 600,
@@ -82,7 +82,7 @@ export function FilterBar({
   const activeCount = (filters.squad ? 1 : 0) + (filters.year ? 1 : 0) + (filters.featureStatus ? 1 : 0);
 
   return (
-    <div className="flex flex-col gap-4 border-b border-[#e5e5e5] px-6 py-5">
+    <div className="flex flex-col gap-4 border-b border-[#e5e5e5] px-4 py-4 sm:px-6 sm:py-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span
@@ -111,8 +111,8 @@ export function FilterBar({
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-[260px]">
+        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+          <div className="relative w-full sm:w-[260px]">
             <Search
               size={16}
               strokeWidth={1.5}

@@ -3,13 +3,18 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { requireAuth } from "../_lib/auth-middleware.js";
 
-const GEMINI_MODEL = "gemini-3.1-flash-lite";
+const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite";
+const ALLOWED_GEMINI_MODELS = new Set([
+  "gemini-3.1-flash-lite",
+  "gemini-3.1-pro",
+]);
 
 type Body = {
   systemInstruction: string;
   userMessage: string;
   history: { role: "user" | "model"; parts: { text: string }[] }[];
   imageEvidence?: { label: string; mimeType: string; data: string }[];
+  model?: string;
 };
 
 type MessagePart =
@@ -56,8 +61,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY missing." });
 
-  const { systemInstruction, userMessage, history, imageEvidence } = (req.body ?? {}) as Body;
+  const { systemInstruction, userMessage, history, imageEvidence, model } = (req.body ?? {}) as Body;
   if (!userMessage) return res.status(400).json({ error: "userMessage required." });
+  const selectedModel = ALLOWED_GEMINI_MODELS.has(model ?? "")
+    ? model!
+    : DEFAULT_GEMINI_MODEL;
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -67,8 +75,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL, systemInstruction });
-    const chat = model.startChat({ history: history ?? [] });
+    const geminiModel = genAI.getGenerativeModel({ model: selectedModel, systemInstruction });
+    const chat = geminiModel.startChat({ history: history ?? [] });
     const result = await chat.sendMessageStream(buildMessageParts(userMessage, imageEvidence) as any);
 
     for await (const chunk of result.stream) {

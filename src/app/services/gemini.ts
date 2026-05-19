@@ -29,14 +29,14 @@ import type { AiTrainingEntry } from "../data/firestore-db";
 const DASHBOARD_NAME = "Feature Design Visibility Tracker";
 const DASHBOARD_OWNER_TEAM = "Product & Design Team";
 const DASHBOARD_PURPOSE =
-  "Melacak visibilitas pengembangan fitur, status desain, ketersediaan Figma, " +
+  "Melacak visibilitas pengembangan fitur, status desain, evidence desain, " +
   "PIC desainer/peneliti, dan tindakan yang dibutuhkan untuk setiap fitur produk.";
 export const GEMINI_MODEL = "gemini-3.1-flash-lite";
 
 const OUT_OF_SCOPE_POLICY = `
 # Batas Konteks
 
-Kamu hanya menjawab hal yang relevan dengan **Feature Design Visibility Tracker**, data fitur di tracker, product/design/research workflow, UX/UI, Figma, status release, squad/module, business impact fitur, evidence UI/userflow, dan cara memakai dashboard ini.
+Kamu hanya menjawab hal yang relevan dengan **Feature Design Visibility Tracker**, data fitur di tracker, product/design/research workflow, UX/UI, design evidence, status release, squad/module, business impact fitur, evidence UI/userflow, dan cara memakai dashboard ini.
 
 Sebelum menjawab, lakukan analisis intent secara diam-diam. Jangan tampilkan proses analisanya. Klasifikasikan request user sebagai salah satu dari:
 - **Sapaan/simple chat**: jawab natural 1 kalimat, jangan analisis data.
@@ -78,6 +78,27 @@ export type ImageEvidence = {
   mimeType: string;
   data: string;
 };
+
+export const AI_MODELS = [
+  {
+    value: "gemini-3.1-flash-lite",
+    label: "3.1 Flash Lite",
+    description: "Lebih cepat dan ringan untuk Q&A harian, ringkasan singkat, dan cek status.",
+  },
+  {
+    value: "gemini-3.1-pro",
+    label: "3.1 Pro",
+    description: "Lebih kuat untuk analisis mendalam, report, dan reasoning yang kompleks.",
+  },
+] as const;
+
+export type AiModel = (typeof AI_MODELS)[number]["value"];
+
+export const DEFAULT_AI_MODEL: AiModel = "gemini-3.1-flash-lite";
+
+export function isAiModel(value: unknown): value is AiModel {
+  return AI_MODELS.some((model) => model.value === value);
+}
 
 const MAX_IMAGE_EVIDENCE = 5;
 const MAX_IMAGE_EVIDENCE_BYTES = 500 * 1024;
@@ -160,14 +181,9 @@ export function buildSystemInstruction(
       byActionNeeded: groupCount(features, (f) => f.actionNeeded),
       uniqueSquads: [...new Set(features.map((f) => f.squad).filter(Boolean))],
       uniqueModules: [...new Set(features.map((f) => f.module).filter(Boolean))],
-      withFigma: features.filter((f) => f.figmaLink).length,
-      withoutFigma: features.filter((f) => !f.figmaLink).length,
       released: features.filter((f) => f.featureStatus === "Released").length,
       releasedWithDesignMismatch: features.filter(
         (f) => f.featureStatus === "Released" && ["Mismatch", "Need Redesign", "No Design Yet"].includes(f.designStatus)
-      ).length,
-      releasedWithoutFigma: features.filter(
-        (f) => f.featureStatus === "Released" && !f.figmaLink
       ).length,
       needingResearchOrUx: features.filter(
         (f) => f.researchNeeded === "Yes" || f.uxEvaluationNeeded === "Yes"
@@ -212,8 +228,8 @@ ${JSON.stringify(featureRows, null, 2)}
 Saat user meminta analisa, evaluasi, "menurut kamu", "kenapa", "apa risikonya", atau review feature released, jangan berhenti di informasi dasar. Gunakan kerangka ini:
 
 - **Status release & readiness**: apakah fitur sudah Released, Ready to Release, atau masih butuh follow-up.
-- **Kualitas desain**: cek designStatus, designSource, Figma availability/link, dan apakah ada mismatch/redesign.
-- **Evidence UI/userflow**: cek apakah ada screenshot existing UI, design Figma, notes comparison, dan userflow image.
+- **Kualitas desain**: cek designStatus, designSource, dan apakah ada mismatch/redesign. Jangan otomatis menekankan Figma kecuali user bertanya soal Figma, link desain, design evidence, handoff desain, atau actionNeeded memang "Need Figma Link".
+- **Evidence UI/userflow**: cek screenshot existing UI, design evidence, notes comparison, dan userflow image hanya kalau user meminta analisis visual/evidence atau pertanyaannya memang membutuhkan itu.
 - **Analisis gambar**: jika image evidence tersedia sebagai lampiran multimodal, baca langsung screenshot/userflow tersebut untuk menilai layout, hierarchy, affordance, density, state, mismatch existing-vs-design, dan friction. Jika gambar tidak terkirim karena ukuran/limit, jelaskan keterbatasannya.
 - **Evaluasi UX mendalam**: analisa clarity, discoverability, friction, error prevention, cognitive load, accessibility risk, consistency dengan design system, trust, empty/error/loading state, dan potensi confusion di user journey. Jika screenshot/notes tidak cukup, jelaskan hipotesis UX yang perlu divalidasi.
 - **Impact bisnis**: pakai businessImpacts untuk menilai area terdampak dan prioritas high/medium/low. Jangan hanya sebut impact; jelaskan bagaimana fitur dapat mempengaruhi conversion, retention, operational efficiency, cost-to-serve, SLA, revenue leakage, compliance, atau customer trust jika relevan.
@@ -223,7 +239,7 @@ Saat user meminta analisa, evaluasi, "menurut kamu", "kenapa", "apa risikonya", 
 - **Risiko dan gap**: bedakan fakta dari inferensi. Kalau data kurang, tulis "indikasinya" atau "belum cukup evidence".
 - **Rekomendasi UX expert**: berikan suggestion seperti UX designer senior: prioritas perbaikan, prinsip desain yang dipakai, apa yang perlu dites, metric yang perlu dipantau, dan contoh pendekatan solusi. Jangan memberi saran generik seperti "perbaiki UI"; buat tajam dan actionable.
 
-Untuk fitur **Released**, analisa harus lebih tajam: apakah release-nya sehat, apakah UX-nya kemungkinan sudah cukup matang, apakah desain terdokumentasi, apakah ada potensi design debt, apakah ada business/process blocker setelah release, apakah perlu retro/research/UX evaluation, dan apa follow-up paling masuk akal.
+Untuk fitur **Released**, analisa harus lebih tajam saat user memang minta evaluasi/analisis: apakah release-nya sehat, apakah UX-nya kemungkinan sudah cukup matang, apakah ada potensi design debt, apakah ada business/process blocker setelah release, apakah perlu retro/research/UX evaluation, dan apa follow-up paling masuk akal. Jangan default membahas "Figma belum ada" kecuali itu diminta, menjadi blocker utama, atau actionNeeded-nya terkait Figma.
 
 Jika user meminta analisa detail terhadap satu fitur, gunakan struktur default ini:
 1. **Verdict singkat** — sehat / perlu perhatian / berisiko, dengan alasan.
@@ -262,10 +278,11 @@ ${
 - **Jangan menonjolkan persona** — pakai cara berpikir UX senior sebagai metode analisis, bukan identitas yang perlu disebut. Hindari frasa berulang seperti "sebagai praktisi UX", "saya UX designer", atau "dengan pengalaman 10 tahun" di jawaban.
 - **Jawab sesuai intensi** — default jawaban 1-3 paragraf pendek atau 3-5 bullet. Jangan memakai struktur panjang, tabel, atau analisis lengkap kalau user tidak memintanya.
 - **Analisis lengkap hanya saat diminta** — gunakan format panjang hanya kalau user memakai kata seperti "analisa", "evaluasi", "review", "detail", "deep dive", "rekomendasi", "risiko", "UX", "bisnis proses", "business blocker", atau meminta report.
+- **Figma bukan fokus default** — jangan sering menyebut Figma/link Figma/design Figma kalau user tidak menanyakannya. Sebut Figma hanya jika user bertanya soal Figma/design evidence, data fitur memang punya action "Need Figma Link", atau ketiadaan Figma adalah blocker utama yang relevan dengan pertanyaan.
 - **Pertanyaan melenceng jauh** — kalau user bertanya di luar konteks tracker/product/design, jangan jawab substansi pertanyaannya dan jangan melakukan analisis fitur. Balas maksimal 1 kalimat pendek: "Itu di luar konteks Feature Design Visibility Tracker, jadi aku tidak jawab di sini." Contoh: kalau ditanya resep nasi goreng, jangan beri resep dan jangan mengaitkan ke fitur.
 - **Sandarkan ke data** — semua angka, nama, dan status harus dari data di atas. Kalau ada user yang tanya hal yang datanya tidak ada, katakan dengan santai (mis. "Belum ada datanya nih" atau "Hmm, belum ada fitur dengan nama itu di tracker").
-- **Aktif menganalisis saat diminta** — jangan cuma menyebut PO/designer/Figma/ringkasan. Beri interpretasi UX, business/process impact, risiko, trade-off, dan next step kalau user meminta analisa/detail/evaluasi.
-- **Proaktif tapi tidak menggurui** — kalau kelihatan pola menarik (released tanpa Figma, mismatch, action needed masih tinggi, evidence UI kosong), singgung sebagai insight dan jelaskan dampaknya.
+- **Aktif menganalisis saat diminta** — jangan cuma menyebut PO/designer/ringkasan. Beri interpretasi UX, business/process impact, risiko, trade-off, dan next step kalau user meminta analisa/detail/evaluasi.
+- **Proaktif tapi tidak menggurui** — kalau kelihatan pola penting seperti mismatch, action needed masih tinggi, evidence UI kosong, research/UX evaluation belum ada, singgung sebagai insight dan jelaskan dampaknya. Jangan menjadikan Figma sebagai pola utama kecuali relevan dengan pertanyaan.
 - **Ikuti bahasa user** — Bahasa Indonesia kalau user pakai Indonesia, Inggris kalau user pakai Inggris. Boleh campur kalau user campur.
 - **Format markdown** — pakai tabel untuk data komparatif, bullet untuk daftar, **bold** untuk angka kunci. Kalau jawaban singkat, paragraf biasa cukup.
 - **Kedalaman sesuai permintaan** — default tetap padat, tapi kalau user minta "detail", "analisa", "review", atau "evaluasi", jawab lebih lengkap dengan section seperti Verdict, Analisis UX, Analisis Bisnis & Proses, Risiko, Gap Evidence, Rekomendasi.
@@ -299,7 +316,7 @@ ${OUT_OF_SCOPE_POLICY}
 
 # Yang Bisa Kamu Bantu
 
-- Kalau user tanya tentang data fitur/squad/status — beritahu kalau tracker masih kosong, lalu arahkan klik **"+ Add Feature"** di dashboard. Sebut field penting yang perlu diisi: nama fitur, module, squad, status fitur, status desain, PIC, link Figma kalau ada.
+- Kalau user tanya tentang data fitur/squad/status — beritahu kalau tracker masih kosong, lalu arahkan klik **"+ Add Feature"** di dashboard. Sebut field penting yang perlu diisi: nama fitur, module, squad, status fitur, status desain, PIC, dan evidence/link desain jika memang ada.
 - Kalau user mau draft fitur pertama — bantu drafting deskripsi atau template.
 - Kalau user tanya tentang dashboard secara umum — jelaskan bahwa ini **${DASHBOARD_NAME}** untuk tim **${DASHBOARD_OWNER_TEAM}**, fungsinya ${DASHBOARD_PURPOSE}
 
@@ -434,7 +451,7 @@ const OUT_OF_SCOPE_REPLY =
   "Itu di luar konteks Feature Design Visibility Tracker, jadi aku tidak jawab di sini.";
 
 const APP_GREETING_REPLY =
-  "Hai, aku bisa bantu cek data fitur, status desain, Figma, UX, dan action yang perlu ditindaklanjuti.";
+  "Hai, aku bisa bantu cek data fitur, status desain, UX, evidence, dan action yang perlu ditindaklanjuti.";
 
 const IN_SCOPE_PATTERN =
   /\b(feature|fitur|tracker|dashboard|design|desain|figma|ux|ui|product|produk|module|modul|squad|status|release|rilis|po|pic|research|riset|userflow|flow|laporan|report|summary|ringkasan|data|timer blocker|prs|screenshot|gambar|image|visual|evidence)\b/i;
@@ -488,7 +505,8 @@ export async function* streamGemini(
   types: TypesState | undefined,
   trainingEntries: AiTrainingEntry[] = [],
   mode: AgentMode = "qa",
-  chatHistory: ChatMessage[] = []
+  chatHistory: ChatMessage[] = [],
+  aiModel: AiModel = DEFAULT_AI_MODEL
 ): AsyncGenerator<string> {
   const outOfScopeReply = getOutOfScopeReply(userMessage, chatHistory);
   if (outOfScopeReply) {
@@ -510,7 +528,7 @@ export async function* streamGemini(
   const res = await fetch("/api/gemini/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ systemInstruction, userMessage, history, imageEvidence }),
+    body: JSON.stringify({ systemInstruction, userMessage, history, imageEvidence, model: aiModel }),
   });
 
   if (!res.ok || !res.body) {
@@ -561,10 +579,11 @@ export async function askGemini(
   types: TypesState | undefined,
   trainingEntries: AiTrainingEntry[] = [],
   mode: AgentMode = "qa",
-  chatHistory: ChatMessage[] = []
+  chatHistory: ChatMessage[] = [],
+  aiModel: AiModel = DEFAULT_AI_MODEL
 ): Promise<string> {
   let full = "";
-  for await (const chunk of streamGemini(userMessage, features, types, trainingEntries, mode, chatHistory)) {
+  for await (const chunk of streamGemini(userMessage, features, types, trainingEntries, mode, chatHistory, aiModel)) {
     full += chunk;
   }
   return full;
