@@ -262,7 +262,7 @@ describe("AI Training — end-to-end integration", () => {
       }),
     ];
 
-    const gen = streamGemini("test", [], undefined, entries, "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, entries, "qa", []);
     await collectGenerator(gen);
 
     expect(fetchMock).toHaveBeenCalledOnce();

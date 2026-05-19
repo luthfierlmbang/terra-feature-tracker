@@ -44,6 +44,7 @@ import {
   buildChatHistory,
   buildSystemInstruction,
   collectImageEvidence,
+  getOutOfScopeReply,
 } from "../../src/app/services/gemini";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ describe("streamGemini — transport", () => {
   it("calls /api/gemini/stream with POST method", async () => {
     fetchMock.mockResolvedValue(mockSseResponse(["hello"]));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     await collectGenerator(gen);
 
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -85,7 +86,7 @@ describe("streamGemini — transport", () => {
   it("does NOT call generativelanguage.googleapis.com", async () => {
     fetchMock.mockResolvedValue(mockSseResponse(["hello"]));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     await collectGenerator(gen);
 
     const calledUrls: string[] = fetchMock.mock.calls.map(([url]: [string]) => url);
@@ -98,7 +99,7 @@ describe("streamGemini — transport", () => {
   it("sends Authorization: Bearer <token> header", async () => {
     fetchMock.mockResolvedValue(mockSseResponse(["hello"]));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     await collectGenerator(gen);
 
     const [, init] = fetchMock.mock.calls[0];
@@ -108,7 +109,7 @@ describe("streamGemini — transport", () => {
   it("sends Content-Type: application/json header", async () => {
     fetchMock.mockResolvedValue(mockSseResponse(["hello"]));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     await collectGenerator(gen);
 
     const [, init] = fetchMock.mock.calls[0];
@@ -118,13 +119,13 @@ describe("streamGemini — transport", () => {
   it("sends systemInstruction, userMessage, and history in body", async () => {
     fetchMock.mockResolvedValue(mockSseResponse(["hello"]));
 
-    const gen = streamGemini("my question", [], undefined, [], "qa", []);
+    const gen = streamGemini("fitur mana yang perlu design", [], undefined, [], "qa", []);
     await collectGenerator(gen);
 
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(init.body);
     expect(body).toHaveProperty("systemInstruction");
-    expect(body).toHaveProperty("userMessage", "my question");
+    expect(body).toHaveProperty("userMessage", "fitur mana yang perlu design");
     expect(body).toHaveProperty("history");
     expect(Array.isArray(body.history)).toBe(true);
   });
@@ -174,6 +175,38 @@ describe("streamGemini — transport", () => {
     });
   });
 
+  it("answers clearly out-of-context questions locally without calling Gemini", async () => {
+    fetchMock.mockResolvedValue(mockSseResponse(["should not be used"]));
+
+    const gen = streamGemini(
+      "resep nasi goreng",
+      [
+        {
+          id: "f-release-1",
+          module: "PRS",
+          name: "Timer Blocker PRS",
+          description: "Blocks timer interactions.",
+          poPic: "Faesol Afif",
+          featureStatus: "Released",
+          designSource: "PO / Squad",
+          designStatus: "Mismatch",
+          figmaAvailable: "Not Available",
+          actionNeeded: "Need Redesign",
+          lastUpdated: "2026-05-18T00:00:00.000Z",
+        },
+      ],
+      undefined,
+      [],
+      "qa",
+      []
+    );
+
+    await expect(collectGenerator(gen)).resolves.toEqual([
+      "Itu di luar konteks Feature Design Visibility Tracker, jadi aku tidak jawab di sini.",
+    ]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("throws 'Not signed in.' when auth.currentUser is null", async () => {
     // Temporarily patch the auth mock's currentUser to null
     const firebase = await import("../../src/app/data/firebase");
@@ -185,7 +218,7 @@ describe("streamGemini — transport", () => {
     fetchMock.mockResolvedValue(mockSseResponse([]));
 
     try {
-      const gen = streamGemini("test", [], undefined, [], "qa", []);
+      const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
       await expect(collectGenerator(gen)).rejects.toThrow("Not signed in.");
     } finally {
       (firebase.auth as any).currentUser = originalCurrentUser;
@@ -251,8 +284,11 @@ describe("buildSystemInstruction — analysis context", () => {
     expect(prompt).toContain("Jangan menonjolkan persona");
     expect(prompt).toContain("Jawab sesuai intensi");
     expect(prompt).toContain("Analisis lengkap hanya saat diminta");
+    expect(prompt).toContain("Batas Konteks");
+    expect(prompt).toContain("inisiatif menolak dengan singkat");
+    expect(prompt).toContain("jangan mengaitkan paksa ke fitur");
     expect(prompt).toContain("Pertanyaan melenceng jauh");
-    expect(prompt).toContain("resep nasi goreng");
+    expect(prompt).toContain("jangan beri resep");
     expect(prompt).toContain("Analisis gambar");
     expect(prompt).toContain("Evaluasi UX mendalam");
     expect(prompt).toContain("Business process & blocker");
@@ -266,6 +302,44 @@ describe("buildSystemInstruction — analysis context", () => {
     expect(prompt).toContain("hasExistingUi");
     expect(prompt).toContain("hasImage");
     expect(prompt).toContain("releasedWithDesignMismatch");
+  });
+});
+
+describe("getOutOfScopeReply", () => {
+  it("returns a short refusal for clear off-topic prompts", () => {
+    const expected =
+      "Itu di luar konteks Feature Design Visibility Tracker, jadi aku tidak jawab di sini.";
+
+    expect(getOutOfScopeReply("resep nasi goreng")).toBe(expected);
+    expect(getOutOfScopeReply("siapa presiden indonesia?")).toBe(expected);
+    expect(getOutOfScopeReply("buatkan pantun lucu")).toBe(expected);
+    expect(getOutOfScopeReply("rekomendasi hotel di bali")).toBe(expected);
+    expect(getOutOfScopeReply("cuaca jakarta hari ini")).toBe(expected);
+    expect(getOutOfScopeReply("berapa 2 + 2?")).toBe(expected);
+    expect(getOutOfScopeReply("jelaskan teori relativitas")).toBe(expected);
+    expect(getOutOfScopeReply("cara memperbaiki AC")).toBe(expected);
+    expect(getOutOfScopeReply("siapa penemu lampu")).toBe(expected);
+    expect(getOutOfScopeReply("ajarin main catur")).toBe(expected);
+    expect(getOutOfScopeReply("buat slogan toko baju")).toBe(expected);
+  });
+
+  it("does not block tracker or design questions", () => {
+    expect(getOutOfScopeReply("analisa UX fitur Timer Blocker PRS")).toBeNull();
+    expect(getOutOfScopeReply("fitur mana yang belum ada figma link?")).toBeNull();
+  });
+
+  it("allows short follow-up questions when prior chat is about tracker data", () => {
+    expect(
+      getOutOfScopeReply("gimana menurutmu?", [
+        {
+          id: "u-1",
+          role: "user",
+          content: "analisa UX fitur Timer Blocker PRS",
+          timestamp: new Date(),
+          mode: "qa",
+        },
+      ])
+    ).toBeNull();
   });
 });
 
@@ -335,7 +409,7 @@ describe("streamGemini — SSE parsing", () => {
     const chunks = ["Hello", " world", "!"];
     fetchMock.mockResolvedValue(mockSseResponse(chunks));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     const collected = await collectGenerator(gen);
 
     expect(collected).toEqual(chunks);
@@ -344,7 +418,7 @@ describe("streamGemini — SSE parsing", () => {
   it("yields a single chunk correctly", async () => {
     fetchMock.mockResolvedValue(mockSseResponse(["single chunk"]));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     const collected = await collectGenerator(gen);
 
     expect(collected).toEqual(["single chunk"]);
@@ -353,7 +427,7 @@ describe("streamGemini — SSE parsing", () => {
   it("yields no chunks for empty SSE stream (only done event)", async () => {
     fetchMock.mockResolvedValue(mockSseResponse([]));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     const collected = await collectGenerator(gen);
 
     expect(collected).toEqual([]);
@@ -364,7 +438,7 @@ describe("streamGemini — SSE parsing", () => {
     const chunks = ["a", "b", "c"];
     fetchMock.mockResolvedValue(mockSseResponse(chunks));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     const collected = await collectGenerator(gen);
 
     expect(collected).toHaveLength(3);
@@ -375,7 +449,7 @@ describe("streamGemini — SSE parsing", () => {
     const chunks = ["The ", "quick ", "brown ", "fox"];
     fetchMock.mockResolvedValue(mockSseResponse(chunks));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     const collected = await collectGenerator(gen);
 
     expect(collected.join("")).toBe(chunks.join(""));
@@ -399,35 +473,35 @@ describe("streamGemini — error handling", () => {
   it("SSE event: error → throws with message preserved", async () => {
     fetchMock.mockResolvedValue(mockSseErrorResponse(500, "Internal server error"));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     await expect(collectGenerator(gen)).rejects.toThrow("Internal server error");
   });
 
   it("SSE event: error with status 429 → throws 'quota: 429'", async () => {
     fetchMock.mockResolvedValue(mockSseErrorResponse(429, "Quota exceeded"));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     await expect(collectGenerator(gen)).rejects.toThrow("quota: 429");
   });
 
   it("HTTP 429 response → throws 'quota: 429'", async () => {
     fetchMock.mockResolvedValue(mockHttpErrorResponse(429));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     await expect(collectGenerator(gen)).rejects.toThrow("quota: 429");
   });
 
   it("HTTP 401 response → throws with status in message", async () => {
     fetchMock.mockResolvedValue(mockHttpErrorResponse(401));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     await expect(collectGenerator(gen)).rejects.toThrow("401");
   });
 
   it("HTTP 500 response → throws with status in message", async () => {
     fetchMock.mockResolvedValue(mockHttpErrorResponse(500));
 
-    const gen = streamGemini("test", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     await expect(collectGenerator(gen)).rejects.toThrow("500");
   });
 });
@@ -450,21 +524,21 @@ describe("askGemini", () => {
     const chunks = ["Hello", " ", "world"];
     fetchMock.mockResolvedValue(mockSseResponse(chunks));
 
-    const result = await askGemini("test", [], undefined, [], "qa", []);
+    const result = await askGemini("status fitur", [], undefined, [], "qa", []);
     expect(result).toBe("Hello world");
   });
 
   it("returns empty string when no chunks", async () => {
     fetchMock.mockResolvedValue(mockSseResponse([]));
 
-    const result = await askGemini("test", [], undefined, [], "qa", []);
+    const result = await askGemini("status fitur", [], undefined, [], "qa", []);
     expect(result).toBe("");
   });
 
   it("propagates errors from streamGemini", async () => {
     fetchMock.mockResolvedValue(mockHttpErrorResponse(429));
 
-    await expect(askGemini("test", [], undefined, [], "qa", [])).rejects.toThrow("quota: 429");
+    await expect(askGemini("status fitur", [], undefined, [], "qa", [])).rejects.toThrow("quota: 429");
   });
 });
 
@@ -659,9 +733,10 @@ describe("P4 — No googleapis.com calls (property-based)", () => {
           );
           if (googleApisCalls.length > 0) return false;
 
-          // At least one call to /api/gemini/stream
+          // In-context prompts call the proxy; out-of-context prompts are
+          // answered locally and make no network call at all.
           const proxyCalls = capturedUrls.filter((u) => u.includes("/api/gemini"));
-          return proxyCalls.length > 0;
+          return proxyCalls.length > 0 || capturedUrls.length === 0;
         }
       ),
       { numRuns: 20 }
@@ -692,7 +767,7 @@ describe("P5 — Streaming chunk preservation (SSE mock)", () => {
         async (chunks) => {
           vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockSseResponse(chunks)));
 
-          const gen = streamGemini("test", [], undefined, [], "qa", []);
+          const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
           const collected = await collectGenerator(gen);
 
           vi.restoreAllMocks();
@@ -710,7 +785,7 @@ describe("P5 — Streaming chunk preservation (SSE mock)", () => {
         async (chunks) => {
           vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockSseResponse(chunks)));
 
-          const gen = streamGemini("test", [], undefined, [], "qa", []);
+          const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
           const collected = await collectGenerator(gen);
 
           vi.restoreAllMocks();
@@ -729,7 +804,7 @@ describe("P5 — Streaming chunk preservation (SSE mock)", () => {
         async (chunks) => {
           vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockSseResponse(chunks)));
 
-          const gen = streamGemini("test", [], undefined, [], "qa", []);
+          const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
           const collected = await collectGenerator(gen);
 
           vi.restoreAllMocks();

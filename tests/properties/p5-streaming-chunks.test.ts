@@ -80,7 +80,7 @@ describe("P5 — streamGemini streaming preservation invariants", () => {
           vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockSseResponse(chunks)));
 
           const gen = streamGemini(
-            "test message",
+            "status fitur",
             [],        // features
             undefined, // types
             [],        // trainingEntries
@@ -113,7 +113,7 @@ describe("P5 — streamGemini streaming preservation invariants", () => {
         async (chunks) => {
           vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockSseResponse(chunks)));
 
-          const gen = streamGemini("test message", [], undefined, [], "qa", []);
+          const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
           const collected = await collectGenerator(gen);
           vi.restoreAllMocks();
 
@@ -139,7 +139,7 @@ describe("P5 — streamGemini streaming preservation invariants", () => {
         async (chunks) => {
           vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockSseResponse(chunks)));
 
-          const gen = streamGemini("test message", [], undefined, [], "qa", []);
+          const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
           const collected = await collectGenerator(gen);
           vi.restoreAllMocks();
 
@@ -160,7 +160,7 @@ describe("P5 — streamGemini streaming preservation invariants", () => {
         async (chunk) => {
           vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockSseResponse([chunk])));
 
-          const gen = streamGemini("test message", [], undefined, [], "qa", []);
+          const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
           const collected = await collectGenerator(gen);
           vi.restoreAllMocks();
 
@@ -185,7 +185,7 @@ describe("P5 — streamGemini streaming preservation invariants", () => {
         async (chunks) => {
           vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockSseResponse(chunks)));
 
-          const gen = streamGemini("test message", [], undefined, [], "qa", []);
+          const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
           const collected = await collectGenerator(gen);
           vi.restoreAllMocks();
 

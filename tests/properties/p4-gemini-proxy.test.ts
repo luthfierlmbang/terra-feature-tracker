@@ -156,7 +156,7 @@ describe("P4 — Bug Condition: streamGemini must NOT call googleapis.com direct
     const { streamGemini } = await import("../../src/app/services/gemini");
 
     // Consume the generator to trigger the SDK call
-    const gen = streamGemini("test message", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     try {
       for await (const _chunk of gen) {
         break; // Just trigger the first call
@@ -187,7 +187,7 @@ describe("P4 — Bug Condition: streamGemini must NOT call googleapis.com direct
      */
     const { streamGemini } = await import("../../src/app/services/gemini");
 
-    const gen = streamGemini("test message", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     try {
       for await (const _chunk of gen) {
         break;
@@ -216,7 +216,7 @@ describe("P4 — Bug Condition: streamGemini must NOT call googleapis.com direct
      */
     const { streamGemini } = await import("../../src/app/services/gemini");
 
-    const gen = streamGemini("test message", [], undefined, [], "qa", []);
+    const gen = streamGemini("status fitur", [], undefined, [], "qa", []);
     try {
       for await (const _chunk of gen) {
         break;

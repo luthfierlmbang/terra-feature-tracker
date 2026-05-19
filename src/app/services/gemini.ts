@@ -33,6 +33,19 @@ const DASHBOARD_PURPOSE =
   "PIC desainer/peneliti, dan tindakan yang dibutuhkan untuk setiap fitur produk.";
 export const GEMINI_MODEL = "gemini-3.1-flash-lite";
 
+const OUT_OF_SCOPE_POLICY = `
+# Batas Konteks
+
+Kamu hanya menjawab hal yang relevan dengan **Feature Design Visibility Tracker**, data fitur di tracker, product/design/research workflow, UX/UI, Figma, status release, squad/module, business impact fitur, evidence UI/userflow, dan cara memakai dashboard ini.
+
+Kalau user bertanya hal yang jelas di luar konteks itu, kamu harus **inisiatif menolak dengan singkat**. Jangan jawab substansi pertanyaannya, jangan memberi trivia/recipe/rekomendasi umum, dan jangan mengaitkan paksa ke fitur yang ada.
+
+Format jawaban untuk pertanyaan di luar konteks harus maksimal 1 kalimat:
+"Itu di luar konteks Feature Design Visibility Tracker, jadi aku tidak jawab di sini."
+
+Contoh yang harus ditolak: resep makanan, cuaca, politik, pantun, film, hotel/travel, matematika umum, kesehatan, saham/crypto, dan pertanyaan umum lain yang tidak berhubungan dengan tracker.
+`.trim();
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type AgentMode = "qa" | "draft" | "report" | "summarize";
@@ -58,7 +71,7 @@ const MAX_IMAGE_EVIDENCE_BYTES = 500 * 1024;
 
 export const MODE_SYSTEM_PROMPTS: Record<AgentMode, string> = {
   qa:
-    "Jawab pertanyaan user dengan natural seperti rekan kerja product/design analyst. Default jawaban harus ringkas dan langsung menjawab. Kalau user hanya minta fakta atau bertanya santai, jangan membuat analisis panjang. Kalau user minta analisa, diagnosis, evaluasi fitur released, risiko, UX, business process, atau rekomendasi, gunakan cara berpikir UX senior dan berikan analisis mendalam yang tetap grounded ke data.",
+    "Jawab pertanyaan user dengan natural seperti rekan kerja product/design analyst. Default jawaban harus ringkas dan langsung menjawab. Kalau user hanya minta fakta atau bertanya santai, jangan membuat analisis panjang. Kalau user minta analisa, diagnosis, evaluasi fitur released, risiko, UX, business process, atau rekomendasi, gunakan cara berpikir UX senior dan berikan analisis mendalam yang tetap grounded ke data. Jika pertanyaan jelas di luar konteks tracker/product/design, jangan jawab substansinya dan jangan kaitkan paksa ke fitur.",
   draft:
     "Bantu menulis deskripsi fitur, impact statement, release note, atau narasi evaluasi. Tulis seperti Product Manager senior dan UX designer berpengalaman: jelas, tajam, ada konteks bisnis, user journey, business process, user impact, risiko, dan next step.",
   report:
@@ -161,6 +174,10 @@ ${modeGuide}
 
 ---
 
+${OUT_OF_SCOPE_POLICY}
+
+---
+
 # Data Tracker (Real-Time)
 
 Berikut data yang kamu punya untuk konteks. Pakai bebas, semuanya ter-update.
@@ -230,7 +247,7 @@ ${
 - **Jangan menonjolkan persona** — pakai cara berpikir UX senior sebagai metode analisis, bukan identitas yang perlu disebut. Hindari frasa berulang seperti "sebagai praktisi UX", "saya UX designer", atau "dengan pengalaman 10 tahun" di jawaban.
 - **Jawab sesuai intensi** — default jawaban 1-3 paragraf pendek atau 3-5 bullet. Jangan memakai struktur panjang, tabel, atau analisis lengkap kalau user tidak memintanya.
 - **Analisis lengkap hanya saat diminta** — gunakan format panjang hanya kalau user memakai kata seperti "analisa", "evaluasi", "review", "detail", "deep dive", "rekomendasi", "risiko", "UX", "bisnis proses", "business blocker", atau meminta report.
-- **Pertanyaan melenceng jauh** — kalau user bertanya di luar konteks tracker/product/design, jawab seperlunya saja. Boleh membantu singkat jika aman dan sederhana, lalu arahkan balik ke konteks tracker. Contoh: kalau ditanya resep nasi goreng, cukup beri versi super singkat, bukan artikel panjang.
+- **Pertanyaan melenceng jauh** — kalau user bertanya di luar konteks tracker/product/design, jangan jawab substansi pertanyaannya dan jangan melakukan analisis fitur. Balas maksimal 1 kalimat pendek: "Itu di luar konteks Feature Design Visibility Tracker, jadi aku tidak jawab di sini." Contoh: kalau ditanya resep nasi goreng, jangan beri resep dan jangan mengaitkan ke fitur.
 - **Sandarkan ke data** — semua angka, nama, dan status harus dari data di atas. Kalau ada user yang tanya hal yang datanya tidak ada, katakan dengan santai (mis. "Belum ada datanya nih" atau "Hmm, belum ada fitur dengan nama itu di tracker").
 - **Aktif menganalisis saat diminta** — jangan cuma menyebut PO/designer/Figma/ringkasan. Beri interpretasi UX, business/process impact, risiko, trade-off, dan next step kalau user meminta analisa/detail/evaluasi.
 - **Proaktif tapi tidak menggurui** — kalau kelihatan pola menarik (released tanpa Figma, mismatch, action needed masih tinggi, evidence UI kosong), singgung sebagai insight dan jelaskan dampaknya.
@@ -261,6 +278,10 @@ Belum ada fitur yang tercatat. Jadi analisis berbasis data belum bisa dilakukan,
 
 ---
 
+${OUT_OF_SCOPE_POLICY}
+
+---
+
 # Yang Bisa Kamu Bantu
 
 - Kalau user tanya tentang data fitur/squad/status — beritahu kalau tracker masih kosong, lalu arahkan klik **"+ Add Feature"** di dashboard. Sebut field penting yang perlu diisi: nama fitur, module, squad, status fitur, status desain, PIC, link Figma kalau ada.
@@ -281,7 +302,7 @@ ${
 
 - **Ngobrol natural** — bukan formal, bukan robotic. Hindari pembuka template seperti "Tentu" atau "Baik" yang berulang. Langsung ke poin tapi tetap ramah.
 - **Jawab sesuai intensi** — default jawaban singkat. Jangan membuat jawaban panjang kecuali user minta analisa, evaluasi, review, detail, rekomendasi, atau report.
-- **Pertanyaan melenceng jauh** — kalau user bertanya di luar konteks tracker/product/design, jawab seperlunya saja dan arahkan balik ke konteks tracker. Contoh: resep nasi goreng cukup versi super singkat, bukan artikel panjang.
+- **Pertanyaan melenceng jauh** — kalau user bertanya di luar konteks tracker/product/design, jangan jawab substansi pertanyaannya. Balas maksimal 1 kalimat pendek: "Itu di luar konteks Feature Design Visibility Tracker, jadi aku tidak jawab di sini." Contoh: resep nasi goreng jangan diberi resep.
 - **Helpful, bukan pasif** — jangan stop di "tidak ada data". Kasih opsi langkah lanjutan.
 - **Punya identitas yang kuat** — kamu tahu nama dashboard, tujuan, dan tim penggunanya. Jawab pertanyaan tentang hal-hal ini dengan percaya diri.
 - **Ikuti bahasa user** — Bahasa Indonesia atau Inggris, mengikuti yang dipakai user.
@@ -394,6 +415,38 @@ export function buildChatHistory(chatHistory: ChatMessage[]) {
   return history;
 }
 
+const OUT_OF_SCOPE_REPLY =
+  "Itu di luar konteks Feature Design Visibility Tracker, jadi aku tidak jawab di sini.";
+
+const IN_SCOPE_PATTERN =
+  /\b(feature|fitur|tracker|dashboard|design|desain|figma|ux|ui|product|produk|module|modul|squad|status|release|rilis|po|pic|research|riset|userflow|flow|laporan|report|summary|ringkasan|data|timer blocker|prs|screenshot|gambar|image|visual|evidence)\b/i;
+
+const SAFE_APP_META_PATTERN =
+  /^(halo|hai|hi|hello|pagi|siang|sore|malam|help|bantuan|kamu siapa|apa yang bisa kamu bantu|bisa bantu apa)\b/i;
+
+const FOLLOW_UP_PATTERN =
+  /\b(itu|ini|tadi|tersebut|yang tadi|gimana|bagaimana|kenapa|mengapa|lanjut|jelasin|jelaskan|detailnya|menurutmu|menurut kamu)\b/i;
+
+const OUT_OF_SCOPE_TOPIC_PATTERN =
+  /\b(resep|masak|memasak|nasi goreng|makanan|minuman|kopi|cuaca|film|lagu|musik|olahraga|sepak bola|bola|game|joke|candaan|cerita|puisi|pantun|horoskop|zodiak|travel|hotel|tiket|presiden|menteri|gubernur|politik|pemilu|saham|crypto|kripto|bitcoin|kurs|dollar|rupiah|matematika|hitung|berapa|diet|kesehatan|obat)\b/i;
+
+export function getOutOfScopeReply(
+  userMessage: string,
+  chatHistory: ChatMessage[] = []
+): string | null {
+  const text = userMessage.trim();
+  if (!text) return null;
+  if (IN_SCOPE_PATTERN.test(text)) return null;
+  if (SAFE_APP_META_PATTERN.test(text)) return null;
+  if (
+    FOLLOW_UP_PATTERN.test(text) &&
+    chatHistory.some((message) => IN_SCOPE_PATTERN.test(message.content))
+  ) {
+    return null;
+  }
+  return OUT_OF_SCOPE_TOPIC_PATTERN.test(text) || text.length > 0 ? OUT_OF_SCOPE_REPLY : null;
+}
+
 // ─── Main API Functions ───────────────────────────────────────────────────────
 
 /**
@@ -411,6 +464,12 @@ export async function* streamGemini(
   mode: AgentMode = "qa",
   chatHistory: ChatMessage[] = []
 ): AsyncGenerator<string> {
+  const outOfScopeReply = getOutOfScopeReply(userMessage, chatHistory);
+  if (outOfScopeReply) {
+    yield outOfScopeReply;
+    return;
+  }
+
   const systemInstruction = buildSystemInstruction(features, types, trainingEntries, mode);
   const imageEvidence = collectImageEvidence(features);
   const history = buildChatHistory(
