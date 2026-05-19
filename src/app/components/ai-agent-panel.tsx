@@ -298,10 +298,56 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
+function formatReportInline(value: string) {
+  return escapeHtml(value)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
+function splitMarkdownTableRow(row: string) {
+  return row
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function isMarkdownTableSeparator(row: string) {
+  const cells = splitMarkdownTableRow(row);
+  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+function reportCellHtml(value: string) {
+  const normalized = value.toLowerCase();
+  const badgeMap: Record<string, string> = {
+    released: "success",
+    approved: "success",
+    available: "success",
+    "no action": "success",
+    high: "danger",
+    mismatch: "danger",
+    "need redesign": "danger",
+    "need design": "warning",
+    "need review": "warning",
+    "need figma link": "warning",
+    medium: "warning",
+    "in progress": "info",
+    discovery: "info",
+    low: "neutral",
+    "not available": "neutral",
+  };
+
+  const badge = badgeMap[normalized];
+  if (badge) return `<span class="badge badge-${badge}">${formatReportInline(value)}</span>`;
+  return formatReportInline(value);
+}
+
 function markdownToReportHtml(markdown: string) {
   const lines = markdown.split("\n");
   const html: string[] = [];
   let listType: "ul" | "ol" | null = null;
+  let index = 0;
 
   const closeList = () => {
     if (!listType) return;
@@ -309,51 +355,77 @@ function markdownToReportHtml(markdown: string) {
     listType = null;
   };
 
-  for (const line of lines) {
-    const trimmed = line.trim();
+  while (index < lines.length) {
+    const trimmed = lines[index].trim();
     if (!trimmed) {
       closeList();
+      index++;
       continue;
     }
 
     if (trimmed.startsWith("# ")) {
       closeList();
-      html.push(`<h1>${escapeHtml(trimmed.slice(2))}</h1>`);
+      html.push(`<h1>${formatReportInline(trimmed.slice(2))}</h1>`);
+      index++;
     } else if (trimmed.startsWith("## ")) {
       closeList();
-      html.push(`<h2>${escapeHtml(trimmed.slice(3))}</h2>`);
+      html.push(`<h2><span class="section-icon"></span>${formatReportInline(trimmed.slice(3))}</h2>`);
+      index++;
     } else if (trimmed.startsWith("### ")) {
       closeList();
-      html.push(`<h3>${escapeHtml(trimmed.slice(4))}</h3>`);
+      html.push(`<h3>${formatReportInline(trimmed.slice(4))}</h3>`);
+      index++;
+    } else if (trimmed.startsWith("|") && lines[index + 1]?.trim().startsWith("|")) {
+      closeList();
+      const tableLines: string[] = [];
+      let cursor = index;
+      while (cursor < lines.length && lines[cursor].trim().startsWith("|")) {
+        tableLines.push(lines[cursor].trim());
+        cursor++;
+      }
+      const headerCells = splitMarkdownTableRow(tableLines[0]);
+      const bodyRows = tableLines.slice(1).filter((row) => !isMarkdownTableSeparator(row));
+      html.push('<div class="table-wrap"><table>');
+      html.push("<thead><tr>");
+      for (const cell of headerCells) html.push(`<th>${formatReportInline(cell)}</th>`);
+      html.push("</tr></thead><tbody>");
+      for (const row of bodyRows) {
+        html.push("<tr>");
+        for (const cell of splitMarkdownTableRow(row)) html.push(`<td>${reportCellHtml(cell)}</td>`);
+        html.push("</tr>");
+      }
+      html.push("</tbody></table></div>");
+      index = cursor;
     } else if (/^\d+\.\s/.test(trimmed)) {
       if (listType !== "ol") {
         closeList();
         html.push("<ol>");
         listType = "ol";
       }
-      html.push(`<li>${escapeHtml(trimmed.replace(/^\d+\.\s/, ""))}</li>`);
+      html.push(`<li>${formatReportInline(trimmed.replace(/^\d+\.\s/, ""))}</li>`);
+      index++;
     } else if (trimmed.startsWith("- ")) {
       if (listType !== "ul") {
         closeList();
         html.push("<ul>");
         listType = "ul";
       }
-      html.push(`<li>${escapeHtml(trimmed.slice(2))}</li>`);
+      html.push(`<li>${formatReportInline(trimmed.slice(2))}</li>`);
+      index++;
     } else if (trimmed.startsWith("|")) {
       closeList();
       html.push(`<pre>${escapeHtml(trimmed)}</pre>`);
+      index++;
     } else {
       closeList();
-      html.push(`<p>${escapeHtml(trimmed)}</p>`);
+      html.push(`<p>${formatReportInline(trimmed)}</p>`);
+      index++;
     }
   }
 
   closeList();
 
-  return html
-    .join("\n")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/`([^`]+)`/g, "<code>$1</code>");
+  return html.join("\n");
 }
 
 function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldPrint = false) {
@@ -370,45 +442,138 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
     <meta charset="utf-8" />
     <title>Tepat AI Feature Report</title>
     <style>
-      @page { margin: 18mm; }
+      @page { margin: 14mm; }
       * { box-sizing: border-box; }
       body {
         margin: 0;
         color: #171717;
         font-family: Inter, Arial, sans-serif;
         line-height: 1.55;
+        background: #f5f7f7;
+      }
+      .report-page {
         background: #ffffff;
+        border: 1px solid #e5e5e5;
+        border-radius: 14px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        margin: 0 auto;
+        max-width: 920px;
+        overflow: hidden;
       }
       .cover {
-        border-bottom: 1px solid #d4d4d4;
+        background: #024042;
+        color: #ffffff;
+        padding: 24px 28px 26px;
+        position: relative;
+      }
+      .cover::after {
+        background: linear-gradient(135deg, rgba(2,135,141,.3), rgba(242,137,36,.18));
+        border-radius: 999px;
+        content: "";
+        height: 160px;
+        position: absolute;
+        right: -72px;
+        top: -88px;
+        width: 160px;
+      }
+      .brand-row {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
         margin-bottom: 24px;
-        padding-bottom: 18px;
+        position: relative;
+        z-index: 1;
+      }
+      .brand-lockup {
+        align-items: center;
+        display: flex;
+        gap: 10px;
+      }
+      .brand-logo {
+        background: #ffffff;
+        border-radius: 8px;
+        display: block;
+        height: 30px;
+        padding: 5px 7px;
+        width: 92px;
+      }
+      .brand-chip {
+        background: rgba(255,255,255,.1);
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 999px;
+        color: #d4eeee;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 5px 9px;
       }
       .eyebrow {
-        color: #027479;
+        color: #80babd;
         font-size: 11px;
         font-weight: 700;
         letter-spacing: .08em;
         margin: 0 0 8px;
         text-transform: uppercase;
+        position: relative;
+        z-index: 1;
       }
       .meta {
-        color: #737373;
+        color: #b0d5d7;
         font-size: 12px;
         margin: 6px 0 0;
+        position: relative;
+        z-index: 1;
+      }
+      main {
+        padding: 22px 28px 28px;
       }
       h1 {
-        color: #171717;
-        font-size: 28px;
+        color: #ffffff;
+        font-size: 26px;
         line-height: 1.2;
         margin: 0 0 10px;
+        max-width: 640px;
+        position: relative;
+        z-index: 1;
       }
       h2 {
+        align-items: center;
         border-top: 1px solid #e5e5e5;
         color: #171717;
+        display: flex;
+        gap: 8px;
         font-size: 18px;
         margin: 28px 0 10px;
         padding-top: 18px;
+      }
+      h2:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+      .section-icon {
+        background: #f0fafb;
+        border: 1px solid #d7eeee;
+        border-radius: 8px;
+        display: inline-flex;
+        height: 22px;
+        position: relative;
+        width: 22px;
+      }
+      .section-icon::before {
+        background: #027479;
+        border-radius: 999px;
+        content: "";
+        height: 8px;
+        left: 6px;
+        position: absolute;
+        top: 6px;
+        width: 8px;
+      }
+      .section-icon::after {
+        background: #f28924;
+        border-radius: 999px;
+        content: "";
+        height: 5px;
+        position: absolute;
+        right: 5px;
+        top: 11px;
+        width: 5px;
       }
       h3 {
         color: #027479;
@@ -425,6 +590,7 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
         padding: 0;
       }
       li { margin: 0 0 5px; }
+      li::marker { color: #027479; font-weight: 700; }
       strong { color: #171717; }
       code {
         background: #f5f5f5;
@@ -444,18 +610,95 @@ function writeReportWindow(reportWindow: Window, reportMarkdown: string, shouldP
         padding: 10px;
         white-space: pre-wrap;
       }
+      .table-wrap {
+        border: 1px solid #e5e5e5;
+        border-radius: 10px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        margin: 12px 0 16px;
+        overflow: hidden;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      thead {
+        background: #fafafa;
+      }
+      th {
+        border-bottom: 1px solid #e5e5e5;
+        color: #525252;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .01em;
+        padding: 9px 11px;
+        text-align: left;
+      }
+      td {
+        border-bottom: 1px solid #eeeeee;
+        color: #404040;
+        font-size: 12px;
+        padding: 10px 11px;
+        vertical-align: top;
+      }
+      tbody tr:last-child td { border-bottom: 0; }
+      tbody tr:nth-child(even) { background: #fcfcfc; }
+      .badge {
+        align-items: center;
+        border-radius: 999px;
+        display: inline-flex;
+        font-size: 11px;
+        font-weight: 700;
+        gap: 5px;
+        line-height: 16px;
+        padding: 2px 7px;
+        white-space: nowrap;
+      }
+      .badge::before {
+        border-radius: 999px;
+        content: "";
+        height: 5px;
+        width: 5px;
+      }
+      .badge-success { background: #ecfdf3; border: 1px solid #abefc6; color: #067647; }
+      .badge-success::before { background: #17b26a; }
+      .badge-warning { background: #fffaeb; border: 1px solid #fedf89; color: #b54708; }
+      .badge-warning::before { background: #f79009; }
+      .badge-danger { background: #fef3f2; border: 1px solid #fecdca; color: #b42318; }
+      .badge-danger::before { background: #f04438; }
+      .badge-info { background: #f0fafb; border: 1px solid #bfe5e7; color: #027479; }
+      .badge-info::before { background: #02878d; }
+      .badge-neutral { background: #f5f5f5; border: 1px solid #e5e5e5; color: #525252; }
+      .badge-neutral::before { background: #a3a3a3; }
       @media print {
-        body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+        body {
+          background: #ffffff;
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+        .report-page {
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
+          max-width: none;
+        }
       }
     </style>
   </head>
   <body>
-    <section class="cover">
-      <p class="eyebrow">Tepat AI Report</p>
-      <h1>Feature Design Visibility Tracker</h1>
-      <p class="meta">Generated ${escapeHtml(generatedAt)} · Save as PDF from the print dialog</p>
-    </section>
-    <main>${body}</main>
+    <div class="report-page">
+      <section class="cover">
+        <div class="brand-row">
+          <div class="brand-lockup">
+            <img class="brand-logo" src="/logo.svg" alt="Tepat" />
+          </div>
+          <span class="brand-chip">Tepat AI</span>
+        </div>
+        <p class="eyebrow">Feature Design Visibility Tracker</p>
+        <h1>AI Generated Product & UX Report</h1>
+        <p class="meta">Generated ${escapeHtml(generatedAt)} · Save as PDF from the print dialog</p>
+      </section>
+      <main>${body}</main>
+    </div>
     ${shouldPrint ? "<script>window.onload = () => setTimeout(() => window.print(), 250);</script>" : ""}
   </body>
 </html>`);
