@@ -2,6 +2,21 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage
 import { storage } from "../data/firebase";
 import type { ReportAttachmentMetadata } from "./report-types";
 
+const REPORT_UPLOAD_TIMEOUT_MS = 35_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timeout setelah ${Math.round(ms / 1000)} detik.`));
+    }, ms);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
 export async function uploadReportArtifact({
   blob,
   fileName,
@@ -22,15 +37,19 @@ export async function uploadReportArtifact({
   const safeFileName = fileName.replace(/[^a-z0-9._-]+/gi, "-").toLowerCase();
   const storagePath = `report-artifacts/${userId}/${sessionId}/${messageId}/${safeFileName}`;
   const artifactRef = ref(storage, storagePath);
-  await uploadBytes(artifactRef, blob, {
-    contentType: "application/pdf",
-    customMetadata: {
-      sessionId,
-      messageId,
-      generatedBy: "feature-tracker",
-    },
-  });
-  const url = await getDownloadURL(artifactRef);
+  await withTimeout(
+    uploadBytes(artifactRef, blob, {
+      contentType: "application/pdf",
+      customMetadata: {
+        sessionId,
+        messageId,
+        generatedBy: "feature-tracker",
+      },
+    }),
+    REPORT_UPLOAD_TIMEOUT_MS,
+    "Upload PDF"
+  );
+  const url = await withTimeout(getDownloadURL(artifactRef), REPORT_UPLOAD_TIMEOUT_MS, "Ambil URL PDF");
 
   return {
     id: messageId,

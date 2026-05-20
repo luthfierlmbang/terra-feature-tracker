@@ -47,6 +47,21 @@ export function isDataImage(value: string | undefined) {
   return Boolean(value && /^data:image\/(png|jpe?g|webp);base64,/i.test(value));
 }
 
+const MAX_PDF_IMAGE_BYTES = 700 * 1024;
+const MAX_VISUAL_SLIDES = 6;
+
+function estimateDataUrlBytes(dataUrl: string | undefined) {
+  if (!dataUrl) return 0;
+  const commaIndex = dataUrl.indexOf(",");
+  const payload = commaIndex >= 0 ? dataUrl.slice(commaIndex + 1) : dataUrl;
+  const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((payload.length * 3) / 4) - padding);
+}
+
+function isPdfSafeDataImage(value: string | undefined) {
+  return isDataImage(value) && estimateDataUrlBytes(value) <= MAX_PDF_IMAGE_BYTES;
+}
+
 function sanitizeReportMarkdown(markdown: string) {
   return markdown
     .replace(/\bTepat AI\b/gi, "Feature Tracker")
@@ -404,8 +419,8 @@ function buildVisualSlides(features: Feature[]): ReportDeckSlide[] {
 
   for (const feature of features) {
     for (const screen of feature.uiScreens ?? []) {
-      const existing = isDataImage(screen.existingDataUrl) ? screen.existingDataUrl : undefined;
-      const figma = isDataImage(screen.figmaDataUrl) ? screen.figmaDataUrl : undefined;
+      const existing = isPdfSafeDataImage(screen.existingDataUrl) ? screen.existingDataUrl : undefined;
+      const figma = isPdfSafeDataImage(screen.figmaDataUrl) ? screen.figmaDataUrl : undefined;
       const sourceRef = sourceId("ui", feature.id, screen.id);
 
       if (existing && figma) {
@@ -440,7 +455,7 @@ function buildVisualSlides(features: Feature[]): ReportDeckSlide[] {
     }
 
     for (const flow of feature.userflows ?? []) {
-      if (!isDataImage(flow.imageUrl)) continue;
+      if (!isPdfSafeDataImage(flow.imageUrl)) continue;
       const sourceRef = sourceId("userflow", feature.id, flow.id);
       slides.push({
         type: "visual_evidence",
@@ -459,7 +474,7 @@ function buildVisualSlides(features: Feature[]): ReportDeckSlide[] {
     }
   }
 
-  return slides;
+  return slides.slice(0, MAX_VISUAL_SLIDES);
 }
 
 function buildAppendixSlides(sources: ReportSource[]): ReportDeckSlide[] {
