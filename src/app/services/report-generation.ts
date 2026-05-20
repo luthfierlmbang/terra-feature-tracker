@@ -84,9 +84,10 @@ async function collectReportAiOutput({
   } catch (error: any) {
     if (didTimeout || error?.name === "AbortError") {
       console.warn("Gemini report generation timed out. Falling back to tracker-only PDF deck.");
-      return "";
+    } else {
+      console.warn("Gemini report generation failed. Falling back to tracker-only PDF deck.", error);
     }
-    throw error;
+    return "";
   } finally {
     globalThis.clearTimeout(timeoutId);
   }
@@ -122,11 +123,24 @@ export async function generateVisualDeckReport({
   });
 
   const pdfBlob = await createReportPdf(aiOutput, features);
-  return uploadReportArtifact({
-    blob: pdfBlob,
-    fileName,
-    userId,
-    sessionId,
-    messageId,
-  });
+  try {
+    return await uploadReportArtifact({
+      blob: pdfBlob,
+      fileName,
+      userId,
+      sessionId,
+      messageId,
+    });
+  } catch (error) {
+    console.warn("PDF artifact upload failed. Falling back to local blob attachment.", error);
+    return {
+      id: messageId,
+      fileName: fileName.replace(/[^a-z0-9._-]+/gi, "-").toLowerCase(),
+      url: URL.createObjectURL(pdfBlob),
+      size: pdfBlob.size,
+      storagePath: "",
+      contentType: "application/pdf",
+      createdAt: new Date().toISOString(),
+    };
+  }
 }

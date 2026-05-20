@@ -48,6 +48,10 @@ describe("generateVisualDeckReport", () => {
   beforeEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn().mockReturnValue("blob:report-pdf"),
+    });
     mocks.createReportPdf.mockResolvedValue(new Blob(["pdf"], { type: "application/pdf" }));
     mocks.uploadReportArtifact.mockResolvedValue(attachment);
   });
@@ -83,5 +87,32 @@ describe("generateVisualDeckReport", () => {
     await expect(promise).resolves.toEqual(attachment);
     expect(mocks.createReportPdf).toHaveBeenCalledWith("", [feature]);
     expect(mocks.uploadReportArtifact).toHaveBeenCalled();
+  });
+
+  it("returns a local blob attachment when Firebase Storage upload fails", async () => {
+    mocks.streamGemini.mockImplementation(async function* () {
+      yield JSON.stringify({ slides: [] });
+    });
+    mocks.uploadReportArtifact.mockRejectedValueOnce(new Error("permission-denied"));
+
+    await expect(
+      generateVisualDeckReport({
+        features: [feature],
+        types: undefined,
+        trainingEntries: [],
+        chatHistory: [],
+        aiModel: "gemini-3.1-flash-lite",
+        fileName: "Feature Tracker Report.pdf",
+        userId: "test-user",
+        sessionId: "chat",
+        messageId: "a-report",
+      })
+    ).resolves.toMatchObject({
+      id: "a-report",
+      fileName: "feature-tracker-report.pdf",
+      url: "blob:report-pdf",
+      storagePath: "",
+      contentType: "application/pdf",
+    });
   });
 });
