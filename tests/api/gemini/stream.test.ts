@@ -1,12 +1,7 @@
 // tests/api/gemini/stream.test.ts
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Build a minimal mock VercelRequest. */
 function makeReq(
   overrides: Partial<{
     method: string;
@@ -22,7 +17,6 @@ function makeReq(
   } as unknown as VercelRequest;
 }
 
-/** Build a mock VercelResponse that captures writes and status calls. */
 function makeRes() {
   const written: string[] = [];
   let statusCode = 0;
@@ -57,63 +51,64 @@ function makeRes() {
   return res as typeof res & VercelResponse;
 }
 
-/**
- * Build a mock for @google/generative-ai that uses a proper class so that
- * `new GoogleGenerativeAI(...)` works correctly in vitest.
- */
-function makeGeminiMock(opts: {
-  sendMessageStream: ReturnType<typeof vi.fn>;
-}) {
-  const startChat = vi.fn().mockReturnValue({ sendMessageStream: opts.sendMessageStream });
-  const getGenerativeModel = vi.fn().mockReturnValue({ startChat });
-
-  // Must use `function` keyword (not arrow) so vitest allows `new`
-  function MockGoogleGenerativeAI(this: any, _apiKey: string) {
-    this.getGenerativeModel = getGenerativeModel;
-  }
-
-  return {
-    GoogleGenerativeAI: MockGoogleGenerativeAI,
-    getGenerativeModel,
-    startChat,
-  };
+function mockAuth() {
+  vi.doMock("../../../api/_lib/auth-middleware", () => ({
+    requireAuth: vi.fn().mockResolvedValue({ uid: "u1", email: "u@test.com" }),
+  }));
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+function makeSseResponse(records: unknown[]) {
+  const encoded = new TextEncoder().encode(
+    records.map((record) => `data: ${JSON.stringify(record)}\n\n`).join("")
+  );
+  return {
+    ok: true,
+    status: 200,
+    body: new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoded);
+        controller.close();
+      },
+    }),
+  } as Response;
+}
+
+function makeErrorResponse(status: number, message: string, geminiStatus = "INVALID_ARGUMENT") {
+  const payload = { error: { code: status, status: geminiStatus, message } };
+  return {
+    ok: false,
+    status,
+    body: null,
+    clone() {
+      return this;
+    },
+    json: vi.fn().mockResolvedValue(payload),
+    text: vi.fn().mockResolvedValue(JSON.stringify(payload)),
+  } as unknown as Response;
+}
 
 describe("api/gemini/stream — handler", () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.unstubAllGlobals();
     process.env.GEMINI_API_KEY = "test-api-key";
   });
 
   afterEach(() => {
     delete process.env.GEMINI_API_KEY;
+    vi.unstubAllGlobals();
   });
 
-  // -------------------------------------------------------------------------
-  // 1. GET method → 405
-  // -------------------------------------------------------------------------
   it("returns 405 for non-POST requests", async () => {
-    vi.doMock("../../../api/_lib/auth-middleware", () => ({
-      requireAuth: vi.fn().mockResolvedValue({ uid: "u1", email: "u@test.com" }),
-    }));
-    vi.doMock("@google/generative-ai", () => ({}));
-
+    mockAuth();
     const { default: handler } = await import("../../../api/gemini/stream");
-    const req = makeReq({ method: "GET" });
     const res = makeRes();
 
-    await handler(req, res);
+    await handler(makeReq({ method: "GET" }), res);
 
     expect(res._statusCode()).toBe(405);
   });
 
-  // -------------------------------------------------------------------------
-  // 2. No auth → 401
-  // -------------------------------------------------------------------------
   it("returns 401 when requireAuth returns null", async () => {
     vi.doMock("../../../api/_lib/auth-middleware", () => ({
       requireAuth: vi.fn().mockImplementation(async (_req: unknown, res: any) => {
@@ -121,252 +116,186 @@ describe("api/gemini/stream — handler", () => {
         return null;
       }),
     }));
-    vi.doMock("@google/generative-ai", () => ({}));
 
     const { default: handler } = await import("../../../api/gemini/stream");
-    const req = makeReq({ headers: {} });
     const res = makeRes();
 
-    await handler(req, res);
+    await handler(makeReq({ headers: {} }), res);
 
     expect(res._statusCode()).toBe(401);
     expect(res._jsonBody()).toEqual({ error: "Missing Authorization header." });
   });
 
-  // -------------------------------------------------------------------------
-  // 3. Missing GEMINI_API_KEY → 500
-  // -------------------------------------------------------------------------
   it("returns 500 when GEMINI_API_KEY env var is missing", async () => {
     delete process.env.GEMINI_API_KEY;
-
-    vi.doMock("../../../api/_lib/auth-middleware", () => ({
-      requireAuth: vi.fn().mockResolvedValue({ uid: "u1", email: "u@test.com" }),
-    }));
-    vi.doMock("@google/generative-ai", () => ({}));
-
+    mockAuth();
     const { default: handler } = await import("../../../api/gemini/stream");
-    const req = makeReq();
     const res = makeRes();
 
-    await handler(req, res);
+    await handler(makeReq(), res);
 
     expect(res._statusCode()).toBe(500);
     expect(res._jsonBody()).toEqual({ error: "GEMINI_API_KEY missing." });
   });
 
-  // -------------------------------------------------------------------------
-  // 4. Missing userMessage → 400
-  // -------------------------------------------------------------------------
   it("returns 400 when userMessage is missing from body", async () => {
-    vi.doMock("../../../api/_lib/auth-middleware", () => ({
-      requireAuth: vi.fn().mockResolvedValue({ uid: "u1", email: "u@test.com" }),
-    }));
-    vi.doMock("@google/generative-ai", () => ({}));
-
+    mockAuth();
     const { default: handler } = await import("../../../api/gemini/stream");
-    const req = makeReq({ body: { systemInstruction: "You are helpful." } });
     const res = makeRes();
 
-    await handler(req, res);
+    await handler(makeReq({ body: { systemInstruction: "You are helpful." } }), res);
 
     expect(res._statusCode()).toBe(400);
     expect(res._jsonBody()).toEqual({ error: "userMessage required." });
   });
 
-  // -------------------------------------------------------------------------
-  // 5. Happy path: mock SDK yields 3 chunks → 3 SSE data records + event: done
-  // -------------------------------------------------------------------------
-  it("streams 3 SSE data records and a done event for 3 SDK chunks", async () => {
-    const chunks = [
-      { text: () => "Hello" },
-      { text: () => " world" },
-      { text: () => "!" },
-    ];
-
-    async function* mockStream() {
-      for (const chunk of chunks) yield chunk;
-    }
-
-    const sendMessageStream = vi.fn().mockResolvedValue({ stream: mockStream() });
-    const { GoogleGenerativeAI, getGenerativeModel } = makeGeminiMock({ sendMessageStream });
-
-    vi.doMock("../../../api/_lib/auth-middleware", () => ({
-      requireAuth: vi.fn().mockResolvedValue({ uid: "u1", email: "u@test.com" }),
-    }));
-    vi.doMock("@google/generative-ai", () => ({ GoogleGenerativeAI }));
+  it("streams REST SSE text records and a done event", async () => {
+    mockAuth();
+    const fetchMock = vi.fn().mockResolvedValue(
+      makeSseResponse([
+        { candidates: [{ content: { parts: [{ text: "Hello" }] } }] },
+        { candidates: [{ content: { parts: [{ text: " world" }, { text: "!" }] } }] },
+      ])
+    );
+    vi.stubGlobal("fetch", fetchMock);
 
     const { default: handler } = await import("../../../api/gemini/stream");
-    const req = makeReq({
-      body: {
-        userMessage: "Hi",
-        systemInstruction: "Be helpful.",
-        history: [],
-      },
-    });
     const res = makeRes();
 
-    await handler(req, res);
+    await handler(
+      makeReq({
+        body: {
+          userMessage: "Hi",
+          systemInstruction: "Be helpful.",
+          history: [],
+        },
+      }),
+      res
+    );
 
-    // Should have written 3 data records + 1 done event
-    const written = res._written;
-    expect(written).toHaveLength(4);
-    expect(written[0]).toBe(`data: ${JSON.stringify({ text: "Hello" })}\n\n`);
-    expect(written[1]).toBe(`data: ${JSON.stringify({ text: " world" })}\n\n`);
-    expect(written[2]).toBe(`data: ${JSON.stringify({ text: "!" })}\n\n`);
-    expect(written[3]).toBe("event: done\ndata: {}\n\n");
-
-    // SSE headers should have been set
+    expect(res._written).toEqual([
+      `data: ${JSON.stringify({ text: "Hello" })}\n\n`,
+      `data: ${JSON.stringify({ text: " world!" })}\n\n`,
+      "event: done\ndata: {}\n\n",
+    ]);
     expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "text/event-stream");
     expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-cache, no-transform");
     expect(res.setHeader).toHaveBeenCalledWith("Connection", "keep-alive");
     expect(res.setHeader).toHaveBeenCalledWith("X-Accel-Buffering", "no");
-
-    // Response should be ended
     expect(res._ended()).toBe(true);
 
-    // SDK should have been called with the right model
-    expect(getGenerativeModel).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "gemini-3.1-flash-lite" })
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:streamGenerateContent?alt=sse",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+          "x-goog-api-key": "test-api-key",
+        }),
+      })
     );
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.systemInstruction.parts[0].text).toBe("Be helpful.");
+    expect(body.contents).toEqual([{ role: "user", parts: [{ text: "Hi" }] }]);
   });
 
-  // -------------------------------------------------------------------------
-  // 5b. Happy path: empty-text chunks are skipped
-  // -------------------------------------------------------------------------
-  it("skips chunks with empty text", async () => {
-    const chunks = [
-      { text: () => "A" },
-      { text: () => "" },   // empty — should be skipped
-      { text: () => "B" },
-    ];
-
-    async function* mockStream() {
-      for (const chunk of chunks) yield chunk;
-    }
-
-    const sendMessageStream = vi.fn().mockResolvedValue({ stream: mockStream() });
-    const { GoogleGenerativeAI } = makeGeminiMock({ sendMessageStream });
-
-    vi.doMock("../../../api/_lib/auth-middleware", () => ({
-      requireAuth: vi.fn().mockResolvedValue({ uid: "u1", email: "u@test.com" }),
-    }));
-    vi.doMock("@google/generative-ai", () => ({ GoogleGenerativeAI }));
+  it("skips REST SSE records without text", async () => {
+    mockAuth();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        makeSseResponse([
+          { candidates: [{ content: { parts: [{ text: "A" }] } }] },
+          { candidates: [{ content: { parts: [{}] } }] },
+          { candidates: [{ content: { parts: [{ text: "B" }] } }] },
+        ])
+      )
+    );
 
     const { default: handler } = await import("../../../api/gemini/stream");
-    const req = makeReq({ body: { userMessage: "Hi" } });
     const res = makeRes();
 
-    await handler(req, res);
+    await handler(makeReq({ body: { userMessage: "Hi" } }), res);
 
-    // Only 2 data records (empty chunk skipped) + done
-    const written = res._written;
-    expect(written).toHaveLength(3);
-    expect(written[0]).toBe(`data: ${JSON.stringify({ text: "A" })}\n\n`);
-    expect(written[1]).toBe(`data: ${JSON.stringify({ text: "B" })}\n\n`);
-    expect(written[2]).toBe("event: done\ndata: {}\n\n");
+    expect(res._written).toEqual([
+      `data: ${JSON.stringify({ text: "A" })}\n\n`,
+      `data: ${JSON.stringify({ text: "B" })}\n\n`,
+      "event: done\ndata: {}\n\n",
+    ]);
   });
 
-  it("uses Gemini 3.1 Flash Lite when an unsupported model is provided", async () => {
-    async function* mockStream() {
-      yield { text: () => "OK" };
-    }
-
-    const sendMessageStream = vi.fn().mockResolvedValue({ stream: mockStream() });
-    const { GoogleGenerativeAI, getGenerativeModel } = makeGeminiMock({ sendMessageStream });
-
-    vi.doMock("../../../api/_lib/auth-middleware", () => ({
-      requireAuth: vi.fn().mockResolvedValue({ uid: "u1", email: "u@test.com" }),
-    }));
-    vi.doMock("@google/generative-ai", () => ({ GoogleGenerativeAI }));
+  it("falls back to Gemini 3.1 Flash Lite when an unsupported model is provided", async () => {
+    mockAuth();
+    const fetchMock = vi.fn().mockResolvedValue(
+      makeSseResponse([{ candidates: [{ content: { parts: [{ text: "OK" }] } }] }])
+    );
+    vi.stubGlobal("fetch", fetchMock);
 
     const { default: handler } = await import("../../../api/gemini/stream");
-    const req = makeReq({
-      body: {
-        userMessage: "Hi",
-        systemInstruction: "Be helpful.",
-        model: "gemini-unknown",
-      },
-    });
     const res = makeRes();
 
-    await handler(req, res);
+    await handler(makeReq({ body: { userMessage: "Hi", model: "gemini-unknown" } }), res);
 
-    expect(getGenerativeModel).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "gemini-3.1-flash-lite" })
-    );
+    expect(fetchMock.mock.calls[0][0]).toContain("/models/gemini-3.1-flash-lite:streamGenerateContent");
   });
 
-  // -------------------------------------------------------------------------
-  // 6. Error path: SDK throws → event: error record in response
-  // -------------------------------------------------------------------------
-  it("writes an error SSE event when the SDK throws a generic error", async () => {
-    const sendMessageStream = vi.fn().mockRejectedValue(new Error("Internal SDK error"));
-    const { GoogleGenerativeAI } = makeGeminiMock({ sendMessageStream });
-
-    vi.doMock("../../../api/_lib/auth-middleware", () => ({
-      requireAuth: vi.fn().mockResolvedValue({ uid: "u1", email: "u@test.com" }),
-    }));
-    vi.doMock("@google/generative-ai", () => ({ GoogleGenerativeAI }));
+  it("maps upstream Gemini errors to SSE error events with details", async () => {
+    mockAuth();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        makeErrorResponse(
+          404,
+          "models/gemini-3.1-flash-lite is not found for API version v1beta",
+          "NOT_FOUND"
+        )
+      )
+    );
 
     const { default: handler } = await import("../../../api/gemini/stream");
-    const req = makeReq({ body: { userMessage: "Hi" } });
     const res = makeRes();
 
-    await handler(req, res);
-
-    const written = res._written;
-    expect(written).toHaveLength(1);
-    expect(written[0]).toBe(
-      `event: error\ndata: ${JSON.stringify({ status: 500, message: "Internal SDK error" })}\n\n`
-    );
-    expect(res._ended()).toBe(true);
-  });
-
-  // -------------------------------------------------------------------------
-  // 6b. Error path: quota/429 error → status 429 in SSE error event
-  // -------------------------------------------------------------------------
-  it("maps quota errors to status 429 in the SSE error event", async () => {
-    const sendMessageStream = vi.fn().mockRejectedValue(
-      new Error("quota exceeded: 429 Too Many Requests")
-    );
-    const { GoogleGenerativeAI } = makeGeminiMock({ sendMessageStream });
-
-    vi.doMock("../../../api/_lib/auth-middleware", () => ({
-      requireAuth: vi.fn().mockResolvedValue({ uid: "u1", email: "u@test.com" }),
-    }));
-    vi.doMock("@google/generative-ai", () => ({ GoogleGenerativeAI }));
-
-    const { default: handler } = await import("../../../api/gemini/stream");
-    const req = makeReq({ body: { userMessage: "Hi" } });
-    const res = makeRes();
-
-    await handler(req, res);
+    await handler(makeReq({ body: { userMessage: "Hi" } }), res);
 
     const written = res._written;
     expect(written).toHaveLength(1);
     const parsed = JSON.parse(written[0].replace("event: error\ndata: ", "").trim());
+    expect(parsed.status).toBe(404);
+    expect(parsed.message).toContain("models/gemini-3.1-flash-lite is not found");
+    expect(res._ended()).toBe(true);
+  });
+
+  it("maps quota errors to status 429 in the SSE error event", async () => {
+    mockAuth();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        makeErrorResponse(429, "quota exceeded: 429 Too Many Requests", "RESOURCE_EXHAUSTED")
+      )
+    );
+
+    const { default: handler } = await import("../../../api/gemini/stream");
+    const res = makeRes();
+
+    await handler(makeReq({ body: { userMessage: "Hi" } }), res);
+
+    const parsed = JSON.parse(res._written[0].replace("event: error\ndata: ", "").trim());
     expect(parsed.status).toBe(429);
     expect(res._ended()).toBe(true);
   });
 
-  // -------------------------------------------------------------------------
-  // 6c. Error path: response is always ended even after error
-  // -------------------------------------------------------------------------
-  it("always ends the response even when an error occurs", async () => {
-    const sendMessageStream = vi.fn().mockRejectedValue(new Error("boom"));
-    const { GoogleGenerativeAI } = makeGeminiMock({ sendMessageStream });
-
-    vi.doMock("../../../api/_lib/auth-middleware", () => ({
-      requireAuth: vi.fn().mockResolvedValue({ uid: "u1", email: "u@test.com" }),
-    }));
-    vi.doMock("@google/generative-ai", () => ({ GoogleGenerativeAI }));
+  it("always ends the response even when fetch throws", async () => {
+    mockAuth();
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network boom")));
 
     const { default: handler } = await import("../../../api/gemini/stream");
-    const req = makeReq({ body: { userMessage: "Hi" } });
     const res = makeRes();
 
-    await handler(req, res);
+    await handler(makeReq({ body: { userMessage: "Hi" } }), res);
 
+    expect(res._written[0]).toBe(
+      `event: error\ndata: ${JSON.stringify({ status: 500, message: "network boom" })}\n\n`
+    );
     expect(res._ended()).toBe(true);
   });
 });
