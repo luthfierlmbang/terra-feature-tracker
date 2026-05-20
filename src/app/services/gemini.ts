@@ -89,6 +89,10 @@ export function isAiModel(value: unknown): value is AiModel {
   return value === DEFAULT_AI_MODEL;
 }
 
+type StreamGeminiOptions = {
+  signal?: AbortSignal;
+};
+
 const MAX_IMAGE_EVIDENCE = 5;
 const MAX_IMAGE_EVIDENCE_BYTES = 500 * 1024;
 
@@ -508,7 +512,8 @@ export async function* streamGemini(
   trainingEntries: AiTrainingEntry[] = [],
   mode: AgentMode = "qa",
   chatHistory: ChatMessage[] = [],
-  aiModel: AiModel = DEFAULT_AI_MODEL
+  aiModel: AiModel = DEFAULT_AI_MODEL,
+  options: StreamGeminiOptions = {}
 ): AsyncGenerator<string> {
   const outOfScopeReply = getOutOfScopeReply(userMessage, chatHistory);
   if (outOfScopeReply) {
@@ -531,6 +536,7 @@ export async function* streamGemini(
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({ systemInstruction, userMessage, history, imageEvidence, model: aiModel }),
+    signal: options.signal,
   });
 
   if (!res.ok || !res.body) {

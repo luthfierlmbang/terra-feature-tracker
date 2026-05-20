@@ -6,6 +6,8 @@ import { uploadReportArtifact } from "./report-artifacts";
 import { streamGemini, type AiModel, type ChatMessage } from "./gemini";
 import type { ReportAttachmentMetadata } from "./report-types";
 
+const REPORT_AI_TIMEOUT_MS = 45_000;
+
 const VISUAL_DECK_REPORT_PROMPT = `Generate visual-first PDF deck spec untuk Feature Design Visibility Tracker.
 
 Balas HANYA JSON valid, tanpa markdown, tanpa pembuka, tanpa byline, tanpa kata Tepat AI, tanpa metadata generated/printed.
@@ -41,6 +43,55 @@ Format:
 
 Fokus: visual deck, bukan laporan naratif. Jangan menulis paragraf panjang. Gunakan observasi, interpretasi, dan action hanya sebagai bullet pendek. Prioritaskan evidence screenshot/userflow yang tersedia di data. Kalau data/evidence kurang, jadikan itu insight visual sebagai evidence gap.`;
 
+async function collectReportAiOutput({
+  features,
+  types,
+  trainingEntries,
+  chatHistory,
+  aiModel,
+}: {
+  features: Feature[];
+  types: TypesState | undefined;
+  trainingEntries: AiTrainingEntry[];
+  chatHistory: ChatMessage[];
+  aiModel: AiModel;
+}) {
+  const controller = new AbortController();
+  let didTimeout = false;
+  const timeoutId = globalThis.setTimeout(() => {
+    didTimeout = true;
+    controller.abort();
+  }, REPORT_AI_TIMEOUT_MS);
+
+  try {
+    const stream = streamGemini(
+      VISUAL_DECK_REPORT_PROMPT,
+      features,
+      types,
+      trainingEntries,
+      "report",
+      chatHistory,
+      aiModel,
+      { signal: controller.signal }
+    );
+    let aiOutput = "";
+
+    for await (const chunk of stream) {
+      aiOutput += chunk;
+    }
+
+    return aiOutput;
+  } catch (error: any) {
+    if (didTimeout || error?.name === "AbortError") {
+      console.warn("Gemini report generation timed out. Falling back to tracker-only PDF deck.");
+      return "";
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
+}
+
 export async function generateVisualDeckReport({
   features,
   types,
@@ -62,20 +113,13 @@ export async function generateVisualDeckReport({
   sessionId: string;
   messageId: string;
 }): Promise<ReportAttachmentMetadata> {
-  const stream = streamGemini(
-    VISUAL_DECK_REPORT_PROMPT,
+  const aiOutput = await collectReportAiOutput({
     features,
     types,
     trainingEntries,
-    "report",
     chatHistory,
     aiModel
-  );
-  let aiOutput = "";
-
-  for await (const chunk of stream) {
-    aiOutput += chunk;
-  }
+  });
 
   const pdfBlob = await createReportPdf(aiOutput, features);
   return uploadReportArtifact({
