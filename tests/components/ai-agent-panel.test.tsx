@@ -154,4 +154,50 @@ describe("AiAgentPanel", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("routes typed PDF requests to the report attachment flow", async () => {
+    const createObjectURL = vi.fn().mockReturnValue("blob:report-pdf");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL,
+      revokeObjectURL,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        mockSseResponse([
+          "# Product & UX Report\n\n## Executive Summary\nReport siap untuk fitur Timer Blocker PRS.",
+        ])
+      )
+    );
+
+    render(
+      <AiAgentPanel
+        features={[feature]}
+        types={undefined}
+        trainingEntries={[]}
+        aiModel="gemini-3.1-flash-lite"
+        userId="test-user"
+        onClose={vi.fn()}
+      />
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText('Tanya apa saja, e.g. "Fitur mana yang belum ada designnya?"'),
+      { target: { value: "coba tolong generate pdfnya dong" } }
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Report PDF siap. Aku lampirkan file-nya di bawah ini.")).toBeInTheDocument();
+      expect(screen.getByText(/feature-tracker-report-/)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Download/i })).toHaveAttribute("href", "blob:report-pdf");
+    });
+
+    expect(screen.queryByText(/tidak memiliki kemampuan/i)).not.toBeInTheDocument();
+    expect(createObjectURL).toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+  });
 });

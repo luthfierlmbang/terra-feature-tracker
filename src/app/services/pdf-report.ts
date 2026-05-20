@@ -3,6 +3,7 @@ import {
   type FlowChartDefinition,
   type FlowChartNode,
 } from "../components/flow-chart-diagram";
+import type { Feature } from "../data/features";
 
 type PdfDoc = InstanceType<typeof import("jspdf").jsPDF>;
 
@@ -21,9 +22,10 @@ type ReportSlide = {
 const PAGE_W = 297;
 const PAGE_H = 210;
 const MARGIN_X = 16;
-const TOP_Y = 18;
-const CONTENT_Y = 38;
-const BOTTOM_Y = 190;
+const CONTENT_X = 22;
+const CONTENT_Y = 46;
+const CONTENT_W = 253;
+const CONTENT_BOTTOM = 184;
 
 const COLORS = {
   text: "#171717",
@@ -37,6 +39,9 @@ const COLORS = {
   greenLine: "#abefc6",
   amberSoft: "#fffaeb",
   amberLine: "#fedf89",
+  redSoft: "#fef3f2",
+  redLine: "#fecdca",
+  red: "#b42318",
   white: "#ffffff",
   page: "#fbfcfc",
 };
@@ -176,29 +181,267 @@ function parseReport(markdown: string): { title: string; slides: ReportSlide[] }
   return { title, slides: slides.filter((slide) => slide.blocks.length > 0) };
 }
 
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
+function splitTextIntoBlocks(text: string, maxLength = 520): TextBlock[] {
+  if (text.length <= maxLength) return [{ type: "text", text }];
+  const parts: TextBlock[] = [];
+  let buffer = "";
+  for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+    if ((buffer + " " + sentence).trim().length > maxLength && buffer) {
+      parts.push({ type: "text", text: buffer.trim() });
+      buffer = sentence;
+    } else {
+      buffer = `${buffer} ${sentence}`.trim();
+    }
+  }
+  if (buffer) parts.push({ type: "text", text: buffer.trim() });
+  return parts;
+}
+
+function normalizeBlocks(blocks: ReportBlock[]): ReportBlock[] {
+  const normalized: ReportBlock[] = [];
+
+  for (const block of blocks) {
+    if (block.type === "text") {
+      normalized.push(...splitTextIntoBlocks(block.text));
+    } else if (block.type === "list") {
+      for (const items of chunkArray(block.items, 6)) normalized.push({ type: "list", items });
+    } else if (block.type === "table") {
+      const [header, ...body] = block.rows;
+      if (!header) continue;
+      for (const rows of chunkArray(body, 6)) normalized.push({ type: "table", rows: [header, ...rows] });
+      if (body.length === 0) normalized.push(block);
+    } else {
+      normalized.push(block);
+    }
+  }
+
+  return normalized;
+}
+
+function estimateBlockHeight(block: ReportBlock) {
+  if (block.type === "heading") return 10;
+  if (block.type === "text") return Math.max(12, Math.ceil(block.text.length / 105) * 6 + 4);
+  if (block.type === "list") return block.items.reduce((sum, item) => sum + Math.max(6, Math.ceil(item.length / 92) * 5 + 2), 4);
+  if (block.type === "table" && isKeyValueTable(block.rows)) return Math.ceil((block.rows.length - 1) / 2) * 22 + 4;
+  if (block.type === "table" && block.rows[0]?.[0]?.toLowerCase() === "metric") return Math.ceil((block.rows.length - 1) / 3) * 33 + 3;
+  if (block.type === "table") return 12 + Math.max(1, block.rows.length) * 13;
+  return 0;
+}
+
+function paginateSlides(slides: ReportSlide[]): ReportSlide[] {
+  const pages: ReportSlide[] = [];
+
+  for (const slide of slides) {
+    const flowBlocks = slide.blocks.filter((block): block is FlowBlock => block.type === "flowchart");
+    const contentBlocks = normalizeBlocks(slide.blocks.filter((block) => block.type !== "flowchart"));
+    let current: ReportBlock[] = [];
+    let height = 0;
+    let part = 1;
+
+    for (const block of contentBlocks) {
+      const blockHeight = estimateBlockHeight(block);
+      if (current.length > 0 && height + blockHeight > 132) {
+        pages.push({
+          title: part === 1 ? slide.title : `${slide.title} (${part})`,
+          blocks: current,
+        });
+        current = [];
+        height = 0;
+        part++;
+      }
+      current.push(block);
+      height += blockHeight;
+    }
+
+    if (current.length > 0) {
+      pages.push({
+        title: part === 1 ? slide.title : `${slide.title} (${part})`,
+        blocks: current,
+      });
+    }
+
+    for (const block of flowBlocks) pages.push({ title: slide.title, blocks: [block] });
+  }
+
+  return pages;
+}
+
+function countBy<T extends string>(items: T[]) {
+  return items.reduce<Record<string, number>>((acc, item) => {
+    acc[item] = (acc[item] ?? 0) + 1;
+    return acc;
+  }, {});
+}
+
+function buildTrackerOverviewSlide(features: Feature[]): ReportSlide {
+  const featureStatus = countBy(features.map((feature) => feature.featureStatus));
+  const designStatus = countBy(features.map((feature) => feature.designStatus));
+  const actionNeeded = countBy(features.map((feature) => feature.actionNeeded));
+
+  return {
+    title: "Tracker Data Snapshot",
+    blocks: [
+      {
+        type: "table",
+        rows: [
+          ["Metric", "Value"],
+          ["Total features", String(features.length)],
+          ["Released", String(featureStatus.Released ?? 0)],
+          ["Need redesign", String(actionNeeded["Need Redesign"] ?? 0)],
+          ["Need design review", String(actionNeeded["Need Design Review"] ?? 0)],
+          ["Need research / UX evaluation", String(features.filter((feature) => feature.researchNeeded === "Yes" || feature.uxEvaluationNeeded === "Yes").length)],
+        ],
+      },
+      {
+        type: "table",
+        rows: [
+          ["Feature status", "Count"],
+          ...Object.entries(featureStatus),
+          ["Design status", ""],
+          ...Object.entries(designStatus),
+        ],
+      },
+    ],
+  };
+}
+
+function buildActionSummarySlide(features: Feature[]): ReportSlide {
+  const rows = features
+    .filter((feature) => feature.actionNeeded !== "No Action")
+    .map((feature) => [
+      feature.name,
+      feature.module,
+      feature.actionNeeded,
+      feature.designStatus,
+      feature.poPic || "-",
+    ]);
+
+  return {
+    title: "Action Priority Summary",
+    blocks: [
+      {
+        type: "table",
+        rows: [
+          ["Feature", "Module", "Action", "Design", "Owner"],
+          ...(rows.length ? rows : [["No open action", "-", "No Action", "-", "-"]]),
+        ],
+      },
+    ],
+  };
+}
+
+function featureFieldRows(feature: Feature) {
+  return [
+    ["Field", "Value"],
+    ["Module", feature.module || "-"],
+    ["Squad", feature.squad || "-"],
+    ["Product Owner", feature.poPic || "-"],
+    ["Feature Status", feature.featureStatus],
+    ["Target Release", feature.targetReleaseDate || "-"],
+    ["Release Date", feature.releaseDate || "-"],
+    ["Design Source", feature.designSource],
+    ["Design Status", feature.designStatus],
+    ["Figma", feature.figmaAvailable],
+    ["Figma Link", feature.figmaLink || "-"],
+    ["Designer", feature.designerPic || "-"],
+    ["Research Needed", feature.researchNeeded || "-"],
+    ["Researcher", feature.researcherPic || "-"],
+    ["UX Evaluation", feature.uxEvaluationNeeded || "-"],
+    ["Action Needed", feature.actionNeeded],
+    ["Last Updated", feature.lastUpdated || "-"],
+  ];
+}
+
+function buildFeatureAppendixSlides(features: Feature[]): ReportSlide[] {
+  return features.flatMap((feature) => {
+    const slides: ReportSlide[] = [
+      {
+        title: `Feature Detail: ${feature.name}`,
+        blocks: [
+          {
+            type: "text",
+            text: cleanInline(feature.description || "No description provided."),
+          },
+          {
+            type: "table",
+            rows: featureFieldRows(feature),
+          },
+        ],
+      },
+    ];
+
+    if (feature.businessImpacts?.length) {
+      slides.push({
+        title: `Business Impact: ${feature.name}`,
+        blocks: [
+          {
+            type: "table",
+            rows: [
+              ["Area", "Description", "Level"],
+              ...feature.businessImpacts.map((impact) => [impact.area, impact.description, impact.level]),
+            ],
+          },
+        ],
+      });
+    }
+
+    const evidenceItems = [
+      `UI screens: ${feature.uiScreens?.length ?? 0}`,
+      `Userflows: ${feature.userflows?.length ?? 0}`,
+      ...(feature.uiScreens ?? []).map((screen) => `UI: ${screen.name || "Untitled screen"}${screen.notes ? ` - ${screen.notes}` : ""}`),
+      ...(feature.userflows ?? []).map((flow) => `Userflow: ${flow.name || "Untitled flow"}${flow.notes ? ` - ${flow.notes}` : ""}`),
+      feature.notes ? `Notes: ${feature.notes}` : "",
+    ].filter(Boolean);
+
+    if (evidenceItems.length > 0) {
+      slides.push({
+        title: `Evidence & Notes: ${feature.name}`,
+        blocks: [{ type: "list", items: evidenceItems }],
+      });
+    }
+
+    return slides;
+  });
+}
+
 function drawSlideFrame(doc: PdfDoc, title: string, page: number) {
   setFill(doc, COLORS.page);
   doc.rect(0, 0, PAGE_W, PAGE_H, "F");
 
   setFill(doc, COLORS.teal);
-  doc.rect(0, 0, 5, PAGE_H, "F");
+  doc.rect(0, 0, 4, PAGE_H, "F");
+
+  setFill(doc, COLORS.white);
+  doc.roundedRect(14, 10, PAGE_W - 28, 25, 3, 3, "F");
 
   setText(doc, COLORS.teal);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.text("Feature Design Visibility Tracker", MARGIN_X, 14);
+  doc.setFontSize(8);
+  doc.text("Feature Design Visibility Tracker", MARGIN_X + 4, 19);
 
   setText(doc, COLORS.text);
-  doc.setFontSize(18);
-  doc.text(title.slice(0, 82), MARGIN_X, 27, { maxWidth: 246 });
+  doc.setFontSize(15);
+  doc.text(title.slice(0, 96), MARGIN_X + 4, 29, { maxWidth: 226 });
 
-  setDraw(doc, COLORS.line);
-  doc.line(MARGIN_X, 33, PAGE_W - MARGIN_X, 33);
+  setFill(doc, COLORS.tealSoft);
+  setDraw(doc, COLORS.tealLine);
+  doc.roundedRect(PAGE_W - 38, 15, 19, 10, 2, 2, "FD");
+
+  setText(doc, COLORS.teal);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.text(String(page).padStart(2, "0"), PAGE_W - 29, 22, { align: "center" });
 
   setText(doc, COLORS.subtle);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.text(String(page).padStart(2, "0"), PAGE_W - MARGIN_X - 7, 197);
+  doc.setFontSize(7.5);
+  doc.text("Generated report", MARGIN_X + 4, 198);
 }
 
 function drawCover(doc: PdfDoc, title: string, featureCount: number) {
@@ -249,42 +492,134 @@ function drawWrappedText(doc: PdfDoc, text: string, x: number, y: number, maxWid
   return y + lines.length * size * 0.48 + 4;
 }
 
-function drawList(doc: PdfDoc, items: string[], x: number, y: number, maxWidth: number) {
+function drawTextCard(doc: PdfDoc, text: string, x: number, y: number, w: number) {
+  const lines = doc.splitTextToSize(text, w - 16);
+  const h = Math.max(20, lines.length * 5.2 + 12);
+  setFill(doc, COLORS.white);
+  setDraw(doc, COLORS.line);
+  doc.roundedRect(x, y, w, h, 3, 3, "FD");
   setText(doc, COLORS.muted);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9.5);
-  for (const item of items.slice(0, 8)) {
+  doc.setFontSize(9.2);
+  doc.text(lines, x + 8, y + 9, { lineHeightFactor: 1.35 });
+  return y + h + 7;
+}
+
+function drawSectionLabel(doc: PdfDoc, label: string, x: number, y: number) {
+  setText(doc, COLORS.teal);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10.5);
+  doc.text(label, x, y);
+  setDraw(doc, COLORS.tealLine);
+  doc.line(x, y + 3, x + 54, y + 3);
+  return y + 10;
+}
+
+function drawList(doc: PdfDoc, items: string[], x: number, y: number, maxWidth: number) {
+  setFill(doc, COLORS.white);
+  setDraw(doc, COLORS.line);
+  const lineGroups = items.map((item) => doc.splitTextToSize(item, maxWidth - 16));
+  const h = Math.max(22, lineGroups.reduce((sum, lines) => sum + Math.max(7, lines.length * 4.6 + 2), 10));
+  doc.roundedRect(x, y - 6, maxWidth, h, 3, 3, "FD");
+  let cursorY = y + 3;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.8);
+  for (const item of items) {
     setFill(doc, COLORS.teal);
-    doc.circle(x + 1.5, y - 1.8, 1, "F");
-    const lines = doc.splitTextToSize(item, maxWidth - 8);
+    doc.circle(x + 8, cursorY - 1.8, 1, "F");
+    const lines = doc.splitTextToSize(item, maxWidth - 22);
     setText(doc, COLORS.muted);
-    doc.text(lines, x + 7, y, { lineHeightFactor: 1.32 });
-    y += Math.max(6, lines.length * 4.8 + 2);
+    doc.text(lines, x + 14, cursorY, { lineHeightFactor: 1.28 });
+    cursorY += Math.max(7, lines.length * 4.6 + 2);
   }
-  return y + 2;
+  return y + h + 6;
 }
 
 function drawTable(doc: PdfDoc, rows: string[][], x: number, y: number, w: number) {
-  const visibleRows = rows.slice(0, 7);
+  const visibleRows = rows;
   const cols = Math.max(...visibleRows.map((row) => row.length));
   const colW = w / cols;
-  const rowH = 11;
+  let cursorY = y;
 
   visibleRows.forEach((row, rowIndex) => {
+    const cellLines = row.slice(0, cols).map((cell) => doc.splitTextToSize(cell, colW - 5).slice(0, 3));
+    const rowH = Math.max(10, Math.max(...cellLines.map((lines) => lines.length)) * 4 + 6);
     setFill(doc, rowIndex === 0 ? COLORS.tealSoft : COLORS.white);
     setDraw(doc, COLORS.line);
-    doc.rect(x, y + rowIndex * rowH, w, rowH, "FD");
-    row.slice(0, cols).forEach((cell, colIndex) => {
-      if (colIndex > 0) doc.line(x + colIndex * colW, y + rowIndex * rowH, x + colIndex * colW, y + (rowIndex + 1) * rowH);
+    doc.rect(x, cursorY, w, rowH, "FD");
+    row.slice(0, cols).forEach((_cell, colIndex) => {
+      if (colIndex > 0) doc.line(x + colIndex * colW, cursorY, x + colIndex * colW, cursorY + rowH);
       setText(doc, rowIndex === 0 ? COLORS.teal : COLORS.muted);
       doc.setFont("helvetica", rowIndex === 0 ? "bold" : "normal");
       doc.setFontSize(7.8);
-      const lines = doc.splitTextToSize(cell, colW - 5).slice(0, 2);
-      doc.text(lines, x + colIndex * colW + 3, y + rowIndex * rowH + 4.5, { lineHeightFactor: 1.2 });
+      doc.text(cellLines[colIndex] ?? [""], x + colIndex * colW + 3, cursorY + 4.5, { lineHeightFactor: 1.2 });
     });
+    cursorY += rowH;
   });
 
-  return y + visibleRows.length * rowH + 6;
+  return cursorY + 6;
+}
+
+function isKeyValueTable(rows: string[][]) {
+  return rows[0]?.[0]?.toLowerCase() === "field" && rows[0]?.[1]?.toLowerCase() === "value";
+}
+
+function drawKeyValueGrid(doc: PdfDoc, rows: string[][], x: number, y: number, w: number) {
+  const entries = rows.slice(1);
+  const colGap = 8;
+  const colW = (w - colGap) / 2;
+  const rowH = 18;
+  let cursorY = y;
+
+  entries.forEach(([label, value], index) => {
+    const col = index % 2;
+    const row = Math.floor(index / 2);
+    const cx = x + col * (colW + colGap);
+    const cy = cursorY + row * (rowH + 4);
+
+    setFill(doc, COLORS.white);
+    setDraw(doc, COLORS.line);
+    doc.roundedRect(cx, cy, colW, rowH, 2.5, 2.5, "FD");
+    setText(doc, COLORS.subtle);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.8);
+    doc.text(label.toUpperCase(), cx + 4, cy + 6);
+    setText(doc, COLORS.text);
+    doc.setFontSize(8.2);
+    const lines = doc.splitTextToSize(value || "-", colW - 8).slice(0, 2);
+    doc.text(lines, cx + 4, cy + 12, { lineHeightFactor: 1.15 });
+  });
+
+  return cursorY + Math.ceil(entries.length / 2) * (rowH + 4) + 4;
+}
+
+function drawMetricCards(doc: PdfDoc, rows: string[][], x: number, y: number, w: number) {
+  const entries = rows.slice(1);
+  if (entries.length < 2) return drawTable(doc, rows, x, y, w);
+
+  const cols = Math.min(3, entries.length);
+  const gap = 8;
+  const cardW = (w - gap * (cols - 1)) / cols;
+  const cardH = 26;
+
+  entries.slice(0, 6).forEach(([label, value], index) => {
+    const row = Math.floor(index / cols);
+    const col = index % cols;
+    const cx = x + col * (cardW + gap);
+    const cy = y + row * (cardH + 7);
+    setFill(doc, COLORS.tealSoft);
+    setDraw(doc, COLORS.tealLine);
+    doc.roundedRect(cx, cy, cardW, cardH, 3, 3, "FD");
+    setText(doc, COLORS.teal);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(value || "-", cx + 5, cy + 12);
+    setText(doc, COLORS.muted);
+    doc.setFontSize(7.4);
+    doc.text(doc.splitTextToSize(label, cardW - 10).slice(0, 2), cx + 5, cy + 20, { lineHeightFactor: 1.1 });
+  });
+
+  return y + Math.ceil(Math.min(entries.length, 6) / cols) * (cardH + 7) + 3;
 }
 
 function drawArrow(doc: PdfDoc, x1: number, y1: number, x2: number, y2: number) {
@@ -359,26 +694,29 @@ function drawFlowChart(doc: PdfDoc, definition: FlowChartDefinition, title: stri
   drawSlideFrame(doc, definition.title || title, pageNumber);
   setFill(doc, COLORS.white);
   setDraw(doc, COLORS.line);
-  doc.roundedRect(18, 44, 261, 128, 4, 4, "FD");
+  doc.roundedRect(CONTENT_X, CONTENT_Y, CONTENT_W, 130, 4, 4, "FD");
 
   const nodes = definition.nodes.slice(0, 10);
-  const cols = Math.min(5, Math.max(1, nodes.length));
-  const nodeW = 42;
-  const nodeH = 22;
-  const gapX = 10;
+  const cols = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(nodes.length))));
+  const nodeW = 48;
+  const nodeH = 24;
+  const decisionSize = 35;
+  const gapX = 16;
   const gapY = 24;
-  const startX = 32;
-  const startY = 62;
+  const totalW = cols * nodeW + (cols - 1) * gapX;
+  const startX = CONTENT_X + (CONTENT_W - totalW) / 2;
+  const startY = 60;
 
   const positions = nodes.map((node, index) => {
     const row = Math.floor(index / cols);
     const col = index % cols;
+    const isDecision = node.kind === "decision";
     return {
       node,
-      x: startX + col * (nodeW + gapX),
+      x: startX + col * (nodeW + gapX) + (isDecision ? (nodeW - decisionSize) / 2 : 0),
       y: startY + row * (nodeH + gapY),
-      w: node.kind === "decision" ? 32 : nodeW,
-      h: node.kind === "decision" ? 32 : nodeH,
+      w: isDecision ? decisionSize : nodeW,
+      h: isDecision ? decisionSize : nodeH,
     };
   });
 
@@ -395,41 +733,60 @@ function drawFlowChart(doc: PdfDoc, definition: FlowChartDefinition, title: stri
   positions.forEach((pos) => drawNodeShape(doc, pos.node, pos.x, pos.y, pos.w, pos.h));
 }
 
+function chunkFlowDefinition(definition: FlowChartDefinition, size = 10): FlowChartDefinition[] {
+  const chunks = chunkArray(definition.nodes, size);
+  if (chunks.length <= 1) return [definition];
+
+  return chunks.map((nodes, index) => ({
+    title: `${definition.title || "Flow chart"} (${index + 1})`,
+    nodes,
+    edges: nodes.slice(0, -1).map((node, nodeIndex) => ({
+      from: node.id,
+      to: nodes[nodeIndex + 1].id,
+    })),
+  }));
+}
+
 function addContentSlide(doc: PdfDoc, slide: ReportSlide, pageNumber: number): number {
   drawSlideFrame(doc, slide.title, pageNumber);
-  setFill(doc, COLORS.white);
-  setDraw(doc, COLORS.line);
-  doc.roundedRect(18, 44, 261, 132, 4, 4, "FD");
 
-  let y = 56;
+  let y = CONTENT_Y;
   for (const block of slide.blocks) {
-    if (y > BOTTOM_Y - 24) break;
     if (block.type === "heading") {
-      setText(doc, COLORS.teal);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text(block.text, 28, y);
-      y += 8;
+      y = drawSectionLabel(doc, block.text, CONTENT_X, y + 1);
     } else if (block.type === "text") {
-      y = drawWrappedText(doc, block.text, 28, y, 236, 9.5);
+      y = drawTextCard(doc, block.text, CONTENT_X, y, CONTENT_W);
     } else if (block.type === "list") {
-      y = drawList(doc, block.items, 29, y, 236);
+      y = drawList(doc, block.items, CONTENT_X, y + 3, CONTENT_W);
     } else if (block.type === "table") {
-      y = drawTable(doc, block.rows, 28, y, 238);
+      if (isKeyValueTable(block.rows)) {
+        y = drawKeyValueGrid(doc, block.rows, CONTENT_X, y, CONTENT_W);
+      } else if (block.rows[0]?.[0]?.toLowerCase() === "metric") {
+        y = drawMetricCards(doc, block.rows, CONTENT_X, y, CONTENT_W);
+      } else {
+        y = drawTable(doc, block.rows, CONTENT_X, y, CONTENT_W);
+      }
     }
+    if (y > CONTENT_BOTTOM) break;
   }
   return pageNumber + 1;
 }
 
-export async function createReportPdf(markdown: string, featureCount: number): Promise<Blob> {
+export async function createReportPdf(markdown: string, features: Feature[]): Promise<Blob> {
   const { jsPDF } = await import("jspdf");
   const { title, slides } = parseReport(markdown);
+  const fullSlides = paginateSlides([
+    ...slides,
+    buildTrackerOverviewSlide(features),
+    buildActionSummarySlide(features),
+    ...buildFeatureAppendixSlides(features),
+  ]);
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
-  drawCover(doc, title, featureCount);
+  drawCover(doc, title, features.length);
   let pageNumber = 2;
 
-  for (const slide of slides) {
+  for (const slide of fullSlides) {
     doc.addPage();
     const flowBlocks = slide.blocks.filter((block): block is FlowBlock => block.type === "flowchart");
     const contentBlocks = slide.blocks.filter((block) => block.type !== "flowchart");
@@ -442,9 +799,11 @@ export async function createReportPdf(markdown: string, featureCount: number): P
     }
 
     for (const flow of flowBlocks) {
-      doc.addPage();
-      drawFlowChart(doc, flow.definition, slide.title, pageNumber);
-      pageNumber++;
+      for (const definition of chunkFlowDefinition(flow.definition)) {
+        doc.addPage();
+        drawFlowChart(doc, definition, slide.title, pageNumber);
+        pageNumber++;
+      }
     }
   }
 

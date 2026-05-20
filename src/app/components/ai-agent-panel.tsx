@@ -323,6 +323,13 @@ function makeReportFileName() {
   return `feature-tracker-report-${stamp}.pdf`;
 }
 
+function isPdfReportRequest(message: string) {
+  const text = message.toLowerCase();
+  const mentionsPdfOrReport = /\b(pdf|report|laporan)\w*\b/i.test(text);
+  const asksToGenerate = /\b(generate|buat|bikin|export|download|unduh|lampir|attach|cetak|save|simpan)\w*\b/i.test(text);
+  return mentionsPdfOrReport && asksToGenerate;
+}
+
 function makeWelcomeMessage(featureCount: number): ChatMessage {
   return {
     id: "welcome",
@@ -1192,12 +1199,19 @@ export function AiAgentPanel({
   // ── Send message ───────────────────────────────────────────────────────
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    const trimmedInput = input.trim();
+    if (!trimmedInput || isLoading) return;
+
+    if (isPdfReportRequest(trimmedInput)) {
+      setInput("");
+      await handleGeneratePdfReport(trimmedInput);
+      return;
+    }
 
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
       role: "user",
-      content: input.trim(),
+      content: trimmedInput,
       timestamp: new Date(),
       mode,
     };
@@ -1218,7 +1232,7 @@ export function AiAgentPanel({
 
     try {
       const stream = streamGemini(
-        input.trim(),
+        trimmedInput,
         features,
         types,
         trainingEntries,
@@ -1256,7 +1270,7 @@ export function AiAgentPanel({
     }
   };
 
-  const handleGeneratePdfReport = async () => {
+  const handleGeneratePdfReport = async (requestText = "Generate PDF report dari kondisi feature tracker saat ini.") => {
     if (isLoading || isExportingReport) return;
 
     const prompt =
@@ -1265,7 +1279,7 @@ export function AiAgentPanel({
     const userMsg: ChatMessage = {
       id: `u-report-${Date.now()}`,
       role: "user",
-      content: "Generate PDF report dari kondisi feature tracker saat ini.",
+      content: requestText,
       timestamp: new Date(),
       mode: "report",
     };
@@ -1310,7 +1324,7 @@ export function AiAgentPanel({
         fullText += chunk;
       }
 
-      const pdfBlob = await createReportPdf(fullText, features.length);
+      const pdfBlob = await createReportPdf(fullText, features);
       const pdfUrl = URL.createObjectURL(pdfBlob);
       setReportAttachments((prev) => ({
         ...prev,
