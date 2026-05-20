@@ -145,4 +145,23 @@ end|Selesai
     expect(blob.type).toBe("application/pdf");
     expect(blob.size).toBeGreaterThan(1000);
   });
+
+  it("does not decode bitmap evidence while creating the PDF", async () => {
+    const imageFeature: Feature = {
+      ...feature,
+      uiScreens: [
+        {
+          id: "heavy-screen",
+          name: "Heavy Screenshot",
+          existingDataUrl: `data:image/jpeg;base64,${"a".repeat(100_000)}`,
+          notes: "Evidence tetap direpresentasikan sebagai placeholder aman di PDF.",
+        },
+      ],
+    };
+
+    const blob = await createReportPdf("", [imageFeature]);
+
+    expect(blob.type).toBe("application/pdf");
+    expect(blob.size).toBeGreaterThan(1000);
+  });
 });

@@ -76,12 +76,6 @@ function toneColors(tone: MetricCard["tone"] = "neutral") {
   return { fill: COLORS.white, line: COLORS.line, text: COLORS.muted };
 }
 
-function imageFormat(dataUrl: string): "PNG" | "JPEG" | "WEBP" {
-  if (/^data:image\/png/i.test(dataUrl)) return "PNG";
-  if (/^data:image\/webp/i.test(dataUrl)) return "WEBP";
-  return "JPEG";
-}
-
 function drawSlideFrame(doc: PdfDoc, slide: ReportDeckSlide, pageNumber: number) {
   setFill(doc, COLORS.page);
   doc.rect(0, 0, PAGE_W, PAGE_H, "F");
@@ -201,27 +195,20 @@ function drawImageBox(doc: PdfDoc, image: DeckImage, x: number, y: number, w: nu
   doc.roundedRect(x, y, w, h, 4, 4, "FD");
 
   const pad = 5;
-  try {
-    const props = (doc as any).getImageProperties(image.src);
-    const ratio = props.width / props.height;
-    let imageW = w - pad * 2;
-    let imageH = imageW / ratio;
-    if (imageH > h - pad * 2) {
-      imageH = h - pad * 2;
-      imageW = imageH * ratio;
-    }
-    const imageX = x + (w - imageW) / 2;
-    const imageY = y + (h - imageH) / 2;
-    doc.addImage(image.src, imageFormat(image.src), imageX, imageY, imageW, imageH);
-  } catch {
-    setFill(doc, COLORS.tealSoft);
-    setDraw(doc, COLORS.tealLine);
-    doc.roundedRect(x + pad, y + pad, w - pad * 2, h - pad * 2, 3, 3, "FD");
-    setText(doc, COLORS.teal);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text("Image evidence unavailable", x + w / 2, y + h / 2, { align: "center" });
-  }
+  setFill(doc, COLORS.tealSoft);
+  setDraw(doc, COLORS.tealLine);
+  doc.roundedRect(x + pad, y + pad, w - pad * 2, h - pad * 2, 3, 3, "FD");
+  setText(doc, COLORS.teal);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("Visual evidence", x + w / 2, y + h / 2 - 4, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.6);
+  setText(doc, COLORS.muted);
+  doc.text("Image tersedia di tracker; PDF memakai placeholder aman.", x + w / 2, y + h / 2 + 5, {
+    align: "center",
+    maxWidth: w - 20,
+  });
 
   setText(doc, COLORS.subtle);
   doc.setFont("helvetica", "bold");
