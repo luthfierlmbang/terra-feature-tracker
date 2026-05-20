@@ -14,6 +14,8 @@ import {
   Plus,
   Trash2,
   FileDown,
+  Eye,
+  Download,
 } from "lucide-react";
 import {
   streamGemini,
@@ -32,6 +34,15 @@ import {
   deriveChatTitle,
 } from "../data/firestore-db";
 import { parseFlowChartDefinition, renderFlowChartHtml } from "./flow-chart-diagram";
+import { createReportPdf } from "../services/pdf-report";
+
+type ReportAttachment = {
+  id: string;
+  fileName: string;
+  status: "loading" | "ready";
+  url?: string;
+  size?: number;
+};
 
 // ─── Mode Config ──────────────────────────────────────────────────────────────
 
@@ -299,6 +310,17 @@ function fromStored(stored: StoredChatMessage[]): ChatMessage[] {
     timestamp: new Date(m.timestamp),
     mode: m.mode as AgentMode | undefined,
   }));
+}
+
+function formatBytes(bytes: number | undefined) {
+  if (!bytes) return "PDF";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function makeReportFileName() {
+  const stamp = new Date().toISOString().slice(0, 10);
+  return `feature-tracker-report-${stamp}.pdf`;
 }
 
 function makeWelcomeMessage(featureCount: number): ChatMessage {
@@ -941,6 +963,73 @@ function writeReportLoadingWindow(reportWindow: Window) {
   );
 }
 
+function ReportAttachmentCard({
+  attachment,
+  onView,
+  onDelete,
+}: {
+  attachment: ReportAttachment;
+  onView: () => void;
+  onDelete: () => void;
+}) {
+  const isLoading = attachment.status === "loading";
+
+  return (
+    <div className="mt-3 overflow-hidden rounded-lg border border-[#d7eeee] bg-[#f0fafb]">
+      <div className="flex items-start gap-3 p-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#027479] shadow-sm">
+          {isLoading ? (
+            <Loader2 size={17} strokeWidth={1.8} className="animate-spin" />
+          ) : (
+            <FileDown size={17} strokeWidth={1.8} />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-semibold leading-5 text-[#171717]">
+            {attachment.fileName}
+          </p>
+          <p className="text-[12px] leading-5 text-[#525252]">
+            {isLoading ? "Menyusun PDF report..." : `PDF siap • ${formatBytes(attachment.size)}`}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1 border-t border-[#d7eeee] bg-white px-2 py-2">
+        <button
+          type="button"
+          onClick={onView}
+          disabled={isLoading}
+          className="press-down inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-semibold text-[#027479] transition-colors hover:bg-[#f0fafb] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Eye size={13} strokeWidth={1.8} />
+          View
+        </button>
+        <a
+          href={isLoading ? undefined : attachment.url}
+          download={attachment.fileName}
+          aria-disabled={isLoading}
+          className={`press-down inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-semibold transition-colors ${
+            isLoading
+              ? "pointer-events-none text-[#a3a3a3]"
+              : "text-[#027479] hover:bg-[#f0fafb]"
+          }`}
+        >
+          <Download size={13} strokeWidth={1.8} />
+          Download
+        </a>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="press-down ml-auto inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-semibold text-[#b42318] transition-colors hover:bg-[#fef3f2]"
+        >
+          <Trash2 size={13} strokeWidth={1.8} />
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function AiAgentPanel({
@@ -965,6 +1054,7 @@ export function AiAgentPanel({
   const [showModeMenu, setShowModeMenu] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [isExportingReport, setIsExportingReport] = useState(false);
+  const [reportAttachments, setReportAttachments] = useState<Record<string, ReportAttachment>>({});
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [deleteSessionTarget, setDeleteSessionTarget] = useState<ChatSession | null>(null);
@@ -972,6 +1062,7 @@ export function AiAgentPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isInitialLoadRef = useRef(true);
+  const reportAttachmentsRef = useRef(reportAttachments);
 
   const currentMode = MODES.find((m) => m.key === mode)!;
 
@@ -1064,10 +1155,39 @@ export function AiAgentPanel({
   }
 
   useEffect(() => {
+    reportAttachmentsRef.current = reportAttachments;
+  }, [reportAttachments]);
+
+  useEffect(() => {
     return () => {
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+      Object.values(reportAttachmentsRef.current).forEach((attachment) => {
+        if (attachment.url) URL.revokeObjectURL(attachment.url);
+      });
     };
   }, []);
+
+  function handleViewAttachment(attachment: ReportAttachment) {
+    if (!attachment.url) return;
+    window.open(attachment.url, "_blank", "noopener,noreferrer");
+  }
+
+  function handleDeleteAttachment(messageId: string) {
+    setReportAttachments((prev) => {
+      const attachment = prev[messageId];
+      if (attachment?.url) URL.revokeObjectURL(attachment.url);
+      const next = { ...prev };
+      delete next[messageId];
+      return next;
+    });
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === messageId
+          ? { ...message, content: "Attachment PDF sudah dihapus dari chat ini." }
+          : message
+      )
+    );
+  }
 
   // ── Send message ───────────────────────────────────────────────────────
 
@@ -1139,11 +1259,6 @@ export function AiAgentPanel({
   const handleGeneratePdfReport = async () => {
     if (isLoading || isExportingReport) return;
 
-    const reportWindow = window.open("", "_blank");
-    if (reportWindow) {
-      writeReportLoadingWindow(reportWindow);
-    }
-
     const prompt =
       "Generate laporan PDF-ready yang mendalam untuk Feature Design Visibility Tracker. Format dalam markdown yang rapi. Sertakan Executive Summary, metrik utama, review fitur Released, analisis UX mendalam dengan cara berpikir UX senior, analisis business process dan potential business blocker, risiko operasional, gap evidence termasuk gambar UI/userflow jika tersedia, rekomendasi prioritas, dan metric yang harus dipantau. Kalau ada penjelasan alur, userflow, pipeline, atau proses yang membutuhkan diagram, sertakan blok ```flowchart dengan format baris kind|label|description opsional; gunakan kind start, input, process, decision, database, output, end sesuai notasi ISO. Jangan tulis byline seperti Analisis Oleh atau Prepared by. Jangan tulis metadata seperti generated, printed, tanggal cetak, atau instruksi print. Jangan menyebut nama asisten, Tepat AI, atau persona seperti saya praktisi UX; langsung berikan insight dan rekomendasi.";
 
@@ -1159,7 +1274,7 @@ export function AiAgentPanel({
     const assistantMsg: ChatMessage = {
       id: assistantId,
       role: "assistant",
-      content: "",
+      content: "Sedang menyusun report PDF. Attachment akan muncul di sini setelah selesai.",
       timestamp: new Date(),
       mode: "report",
     };
@@ -1169,6 +1284,15 @@ export function AiAgentPanel({
     setMode("report");
     setIsLoading(true);
     setIsExportingReport(true);
+    const fileName = makeReportFileName();
+    setReportAttachments((prev) => ({
+      ...prev,
+      [assistantId]: {
+        id: assistantId,
+        fileName,
+        status: "loading",
+      },
+    }));
 
     try {
       const stream = streamGemini(
@@ -1184,29 +1308,42 @@ export function AiAgentPanel({
 
       for await (const chunk of stream) {
         fullText += chunk;
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content: fullText } : m))
-        );
       }
+
+      const pdfBlob = await createReportPdf(fullText, features.length);
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      setReportAttachments((prev) => ({
+        ...prev,
+        [assistantId]: {
+          id: assistantId,
+          fileName,
+          status: "ready",
+          url: pdfUrl,
+          size: pdfBlob.size,
+        },
+      }));
 
       const finalMessages = nextMessages.map((m) =>
-        m.id === assistantId ? { ...m, content: fullText } : m
+        m.id === assistantId
+          ? { ...m, content: "Report PDF siap. Aku lampirkan file-nya di bawah ini." }
+          : m
       );
+      setMessages(finalMessages);
       persistSession(finalMessages);
-
-      if (reportWindow) {
-        writeReportWindow(reportWindow, fullText, true);
-        toast.success("Report siap", "Print dialog terbuka. Pilih Save as PDF.");
-      } else {
-        toast.warning("Report selesai", "Pop-up browser terblokir, tapi report sudah muncul di chat.");
-      }
+      toast.success("Report siap", "PDF sudah dilampirkan di chat.");
     } catch (err: any) {
       const errMsg = err?.message || String(err);
       const friendlyMessage = `⚠️ Gagal generate PDF report.\n\n**Detail Error:** \`${errMsg}\``;
       setMessages((prev) =>
         prev.map((m) => (m.id === assistantId ? { ...m, content: friendlyMessage } : m))
       );
-      reportWindow?.close();
+      setReportAttachments((prev) => {
+        const attachment = prev[assistantId];
+        if (attachment?.url) URL.revokeObjectURL(attachment.url);
+        const next = { ...prev };
+        delete next[assistantId];
+        return next;
+      });
       toast.error("Gagal generate report", errMsg);
     } finally {
       setIsLoading(false);
@@ -1438,8 +1575,17 @@ export function AiAgentPanel({
                 >
                   {msg.content}
                 </p>
-              ) : msg.content ? (
-                <MarkdownText text={msg.content} />
+              ) : msg.content || reportAttachments[msg.id] ? (
+                <>
+                  {msg.content && <MarkdownText text={msg.content} />}
+                  {reportAttachments[msg.id] && (
+                    <ReportAttachmentCard
+                      attachment={reportAttachments[msg.id]}
+                      onView={() => handleViewAttachment(reportAttachments[msg.id])}
+                      onDelete={() => handleDeleteAttachment(msg.id)}
+                    />
+                  )}
+                </>
               ) : (
                 <div className="flex items-center gap-1 py-1">
                   <span className="size-1.5 animate-bounce rounded-full bg-[#02878d]" style={{ animationDelay: "0ms" }} />
