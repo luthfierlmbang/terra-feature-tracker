@@ -17,6 +17,7 @@ import { db } from "./firebase";
 import type { Feature } from "./features";
 import type { TypesState } from "../components/customize-types";
 import { DEFAULT_AI_MODEL, isAiModel, type AiModel } from "../services/gemini";
+import type { ReportAttachmentMetadata } from "../services/report-types";
 import {
   INITIAL_FEATURES,
   FEATURE_STATUSES,
@@ -370,6 +371,7 @@ export type StoredChatMessage = {
   content: string;
   timestamp: string; // ISO string for Firestore safety
   mode?: string;
+  attachments?: ReportAttachmentMetadata[];
 };
 
 export type ChatSession = {

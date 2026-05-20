@@ -1,6 +1,7 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -19,12 +20,14 @@ const isFirebaseConfigured = Boolean(
 let app;
 let db: any = null;
 let auth: any = null;
+let storage: any = null;
 
 if (isFirebaseConfigured) {
   try {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
     db = getFirestore(app);
     auth = getAuth(app);
+    storage = getStorage(app);
   } catch (err) {
     console.error("Firebase initialization failed:", err);
   }
@@ -32,4 +35,4 @@ if (isFirebaseConfigured) {
   console.warn("⚠️ Firebase credentials are not configured. Please check your Vercel Environment Variables or .env file.");
 }
 
-export { db, auth, isFirebaseConfigured };
+export { db, auth, storage, isFirebaseConfigured };

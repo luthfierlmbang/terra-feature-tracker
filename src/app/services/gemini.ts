@@ -23,6 +23,7 @@ import { auth } from "../data/firebase";
 import type { Feature } from "../data/features";
 import type { TypesState } from "../components/customize-types";
 import type { AiTrainingEntry } from "../data/firestore-db";
+import type { ReportAttachmentMetadata } from "./report-types";
 
 // ─── Constants (static identity — never changes) ──────────────────────────────
 
@@ -71,6 +72,7 @@ export type ChatMessage = {
   content: string;
   timestamp: Date;
   mode?: AgentMode;
+  attachments?: ReportAttachmentMetadata[];
 };
 
 export type ImageEvidence = {

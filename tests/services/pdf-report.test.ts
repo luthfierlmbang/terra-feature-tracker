@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createReportPdf } from "../../src/app/services/pdf-report";
+import { buildReportDeckSpec, createReportPdf } from "../../src/app/services/pdf-report";
 import type { Feature } from "../../src/app/data/features";
 
 const feature: Feature = {
@@ -46,6 +46,78 @@ const feature: Feature = {
 };
 
 describe("createReportPdf", () => {
+  it("builds a visual-first deck spec with capped text and image evidence", () => {
+    const imageFeature: Feature = {
+      ...feature,
+      uiScreens: [
+        {
+          id: "screen-1",
+          name: "Timer aktif",
+          notes:
+            "Catatan ini sengaja dibuat sangat panjang untuk memastikan renderer tidak memaksa paragraf naratif ke dalam slide visual dan tetap menjaga caption ringkas.",
+          existingDataUrl:
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+        },
+      ],
+    };
+    const spec = buildReportDeckSpec(
+      JSON.stringify({
+        slides: [
+          {
+            type: "recommendation",
+            title: "Rekomendasi Prioritas yang Sangat Panjang dan Harus Dipotong",
+            headline:
+              "Ini adalah headline yang sengaja sangat panjang agar sistem memotongnya menjadi kalimat pendek untuk deck visual",
+            bullets: [
+              "Bullet ini juga panjang sekali supaya tidak berubah menjadi paragraf naratif yang membuat slide sulit dibaca oleh stakeholder.",
+              "Tetap tampil sebagai action pendek.",
+              "Insight ketiga.",
+              "Insight keempat harus dibuang.",
+            ],
+          },
+        ],
+      }),
+      [imageFeature]
+    );
+
+    const visualSlide = spec.slides.find((slide) => slide.type === "visual_evidence" && slide.image);
+    const recommendation = spec.slides.find((slide) => slide.type === "recommendation");
+
+    expect(visualSlide?.image?.src).toMatch(/^data:image\/png/);
+    expect(recommendation?.headline.length).toBeLessThanOrEqual(89);
+    expect(recommendation?.bullets?.length).toBeLessThanOrEqual(5);
+    expect(spec.slides.every((slide) => (slide.bullets ?? []).every((bullet) => bullet.length <= 120))).toBe(true);
+  });
+
+  it("keeps ISO flowchart notation in the visual deck spec", () => {
+    const spec = buildReportDeckSpec(
+      `
+\`\`\`flowchart
+title: Generate PDF
+start|Mulai
+input|User memilih tanggal
+process|Validasi parameter
+decision|Parameter valid?
+database|Query database
+output|PDF terunduh
+end|Selesai
+\`\`\`
+`,
+      [feature]
+    );
+
+    const flowSlide = spec.slides.find((slide) => slide.type === "flowchart");
+    expect(flowSlide?.flowchart?.nodes.map((node) => node.kind)).toEqual([
+      "start",
+      "input",
+      "process",
+      "decision",
+      "database",
+      "output",
+      "end",
+    ]);
+  });
+
   it("creates a downloadable PDF blob from report markdown and tracker data", async () => {
     const blob = await createReportPdf(
       `
