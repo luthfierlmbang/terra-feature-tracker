@@ -95,6 +95,7 @@ type StreamGeminiOptions = {
 
 const MAX_IMAGE_EVIDENCE = 5;
 const MAX_IMAGE_EVIDENCE_BYTES = 500 * 1024;
+const GEMINI_STREAM_TIMEOUT_MS = 45_000;
 
 // ─── Mode Prompts ─────────────────────────────────────────────────────────────
 
@@ -531,49 +532,62 @@ export async function* streamGemini(
 
   if (!auth?.currentUser) throw new Error("Not signed in.");
   const token = await auth.currentUser.getIdToken();
+  const timeoutController = options.signal ? null : new AbortController();
+  const timeoutId = timeoutController
+    ? globalThis.setTimeout(() => timeoutController.abort(), GEMINI_STREAM_TIMEOUT_MS)
+    : null;
 
-  const res = await fetch("/api/gemini/stream", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ systemInstruction, userMessage, history, imageEvidence, model: aiModel }),
-    signal: options.signal,
-  });
+  try {
+    const res = await fetch("/api/gemini/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ systemInstruction, userMessage, history, imageEvidence, model: aiModel }),
+      signal: options.signal ?? timeoutController?.signal,
+    });
 
-  if (!res.ok || !res.body) {
-    if (res.status === 429) throw new Error("quota: 429");
-    let detail = "";
-    try { const j = await res.clone().json(); detail = j.detail || j.error || ""; } catch {}
-    throw new Error(`Gemini proxy failed (${res.status})${detail ? ": " + detail : ""}.`);
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-
-    let idx;
-    while ((idx = buf.indexOf("\n\n")) !== -1) {
-      const record = buf.slice(0, idx);
-      buf = buf.slice(idx + 2);
-
-      const eventLine = record.split("\n").find((l) => l.startsWith("event:"));
-      const dataLine = record.split("\n").find((l) => l.startsWith("data:"));
-      if (!dataLine) continue;
-      const payload = dataLine.slice(5).trim();
-      if (eventLine?.includes("error")) {
-        const { status, message } = JSON.parse(payload);
-        if (status === 429) throw new Error("quota: 429");
-        throw new Error(message ?? "Gemini proxy error.");
-      }
-      if (eventLine?.includes("done")) return;
-      if (!payload) continue;
-      const { text } = JSON.parse(payload);
-      if (text) yield text;
+    if (!res.ok || !res.body) {
+      if (res.status === 429) throw new Error("quota: 429");
+      let detail = "";
+      try { const j = await res.clone().json(); detail = j.detail || j.error || ""; } catch {}
+      throw new Error(`Gemini proxy failed (${res.status})${detail ? ": " + detail : ""}.`);
     }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) !== -1) {
+        const record = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+
+        const eventLine = record.split("\n").find((l) => l.startsWith("event:"));
+        const dataLine = record.split("\n").find((l) => l.startsWith("data:"));
+        if (!dataLine) continue;
+        const payload = dataLine.slice(5).trim();
+        if (eventLine?.includes("error")) {
+          const { status, message } = JSON.parse(payload);
+          if (status === 429) throw new Error("quota: 429");
+          throw new Error(message ?? "Gemini proxy error.");
+        }
+        if (eventLine?.includes("done")) return;
+        if (!payload) continue;
+        const { text } = JSON.parse(payload);
+        if (text) yield text;
+      }
+    }
+  } catch (error: any) {
+    if (error?.name === "AbortError" && timeoutController) {
+      throw new Error("Gemini request timeout.");
+    }
+    throw error;
+  } finally {
+    if (timeoutId) globalThis.clearTimeout(timeoutId);
   }
 }
 
