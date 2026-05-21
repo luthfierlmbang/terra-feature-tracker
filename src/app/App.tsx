@@ -91,14 +91,30 @@ function sortFeatures(features: Feature[]) {
 }
 
 
-function getYear(feature: Feature): string | null {
+function getFilterDate(feature: Feature): Date | null {
   const iso = feature.releaseDate ?? feature.targetReleaseDate;
   if (!iso) return null;
-  return String(new Date(iso).getFullYear());
+  const parsed = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getStartOfDay(iso: string): Date | null {
+  if (!iso) return null;
+  const parsed = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getEndOfDay(iso: string): Date | null {
+  if (!iso) return null;
+  const parsed = new Date(`${iso}T23:59:59.999`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function applyFilters(features: Feature[], f: FilterState) {
   const q = f.search.trim().toLowerCase();
+  const dateFrom = getStartOfDay(f.dateFrom);
+  const dateTo = getEndOfDay(f.dateTo);
+
   return features.filter((feat) => {
     if (q) {
       const hay = [feat.name, feat.description, feat.module, feat.poPic, feat.designerPic ?? "", feat.squad ?? ""]
@@ -107,8 +123,13 @@ function applyFilters(features: Feature[], f: FilterState) {
       if (!hay.includes(q)) return false;
     }
     if (f.squad && feat.squad !== f.squad) return false;
-    if (f.year && getYear(feat) !== f.year) return false;
     if (f.featureStatus && feat.featureStatus !== f.featureStatus) return false;
+    if (dateFrom || dateTo) {
+      const featureDate = getFilterDate(feat);
+      if (!featureDate) return false;
+      if (dateFrom && featureDate < dateFrom) return false;
+      if (dateTo && featureDate > dateTo) return false;
+    }
     return true;
   });
 }
@@ -440,7 +461,11 @@ export default function App() {
   }
 
   const hasActiveFilters =
-    Boolean(filters.squad) || Boolean(filters.year) || Boolean(filters.featureStatus) || filters.search.length > 0;
+    Boolean(filters.squad) ||
+    Boolean(filters.dateFrom) ||
+    Boolean(filters.dateTo) ||
+    Boolean(filters.featureStatus) ||
+    filters.search.length > 0;
 
   // Render safe error screen if Firebase variables are missing in Vercel
   if (!isFirebaseConfigured) {
