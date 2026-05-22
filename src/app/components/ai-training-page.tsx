@@ -439,7 +439,7 @@ export function AiTrainingPage({
         attachmentName: currentAttachment?.name || undefined,
         attachmentType: currentAttachment?.type || undefined,
         attachmentSize: currentAttachment?.size || undefined,
-        extractedText: currentAttachment?.extractedText || undefined,
+        extractedText: currentAttachment?.extractedText ? currentAttachment.extractedText.slice(0, 100000) : undefined,
         attachmentUrl: currentAttachment?.url || undefined,
         attachmentPath: currentAttachment?.path || undefined,
         createdAt: editingEntry?.createdAt || now,

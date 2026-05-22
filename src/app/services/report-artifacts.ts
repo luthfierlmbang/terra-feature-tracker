@@ -2,13 +2,13 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage
 import { storage } from "../data/firebase";
 import type { ReportAttachmentMetadata } from "./report-types";
 
-const REPORT_UPLOAD_TIMEOUT_MS = 35_000;
+const REPORT_UPLOAD_TIMEOUT_MS = 120_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
-      reject(new Error(`${label} timeout setelah ${Math.round(ms / 1000)} detik.`));
+      reject(new Error(`${label} timeout setelah ${Math.round(ms / 1000)} detik. Coba lagi dengan koneksi yang lebih stabil atau ukuran file yang lebih kecil.`));
     }, ms);
   });
 
