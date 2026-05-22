@@ -501,10 +501,76 @@ function pushImageEvidence(
   });
 }
 
-export function collectImageEvidence(features: Feature[]): ImageEvidence[] {
+export function collectImageEvidence(
+  features: Feature[],
+  userMessage?: string,
+  currentViewContext?: CurrentViewContext
+): ImageEvidence[] {
   const items: ImageEvidence[] = [];
 
-  for (const feature of features) {
+  // 1. Identify which features are relevant to the user's current context or query.
+  const targetFeatureIds = new Set<string>();
+  const targetFeatures: Feature[] = [];
+
+  const addTarget = (f: Feature) => {
+    if (!f || !f.id || targetFeatureIds.has(f.id)) return;
+    targetFeatureIds.add(f.id);
+    targetFeatures.push(f);
+  };
+
+  // Context A: Currently viewing a feature detail page
+  if (currentViewContext?.viewingFeature?.id) {
+    const found = features.find((f) => f.id === currentViewContext.viewingFeature?.id);
+    if (found) addTarget(found);
+  }
+
+  // Context B: Currently editing/adding a feature in a form
+  if (currentViewContext?.activeForm?.feature?.id) {
+    const found = features.find((f) => f.id === currentViewContext.activeForm?.feature?.id);
+    if (found) addTarget(found);
+  }
+
+  // Context C: User query mentions a feature by name or distinctive keyword
+  if (userMessage) {
+    const msgLower = userMessage.toLowerCase();
+    
+    // Distinctive words from the query to match against feature names
+    const queryWords = msgLower
+      .split(/[^a-zA-Z0-9]/)
+      .filter((w) => w.length >= 4 && !["fitur", "module", "squad", "desain", "design", "analisa", "analisis", "tampil", "tampilkan", "lihat", "detail"].includes(w));
+
+    for (const feature of features) {
+      if (!feature.name) continue;
+      const nameLower = feature.name.toLowerCase();
+
+      // Direct full-name match in user message
+      if (msgLower.includes(nameLower)) {
+        addTarget(feature);
+        continue;
+      }
+
+      // Keyword match: does the feature name contain a distinctive query word?
+      for (const word of queryWords) {
+        if (nameLower.includes(word)) {
+          addTarget(feature);
+          break;
+        }
+      }
+    }
+  }
+
+  // Fallback: If no specific feature is viewed, edited, or mentioned, but the user message explicitly 
+  // asks for visual evidence, we can search all features. Otherwise, return empty to prevent confusing the model.
+  const isGeneralVisualRequest = userMessage && /\b(screenshoot|screenshot|gambar|image|evidence|visual|userflow)\b/i.test(userMessage);
+  
+  // If we are in a testing or parameter-less environment, or the user requested general visual/screenshot analysis, scan all features
+  const shouldScanAll = (!userMessage && !currentViewContext) || isGeneralVisualRequest;
+  
+  const finalFeaturesToScan = targetFeatures.length > 0 
+    ? targetFeatures 
+    : (shouldScanAll ? features : []);
+
+  for (const feature of finalFeaturesToScan) {
     const featureLabel = `${feature.module || "Unknown module"} / ${feature.name || "Untitled feature"}`;
 
     for (const screen of feature.uiScreens ?? []) {
@@ -630,7 +696,7 @@ export async function* streamGemini(
 
   const systemInstruction = buildSystemInstruction(features, types, trainingData, mode, options.currentViewContext);
   const imageEvidence = shouldSendImageEvidence(userMessage, mode)
-    ? collectImageEvidence(features)
+    ? collectImageEvidence(features, userMessage, options.currentViewContext)
     : [];
   const history = buildChatHistory(
     chatHistory.filter((m) => !(m.role === "assistant" && !m.content))
