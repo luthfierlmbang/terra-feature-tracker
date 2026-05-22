@@ -1,9 +1,31 @@
 import * as pdfjsLib from "pdfjs-dist";
 import mammoth from "mammoth";
 
-// Set PDF.js worker source from CDN to avoid bundler loading issues in Vite/React
-if (typeof window !== "undefined") {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Polyfill Promise.withResolvers for environments/browsers that don't support it
+if (typeof Promise.withResolvers === "undefined") {
+  Promise.withResolvers = function <T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: any) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
+
+const isTest = typeof process !== "undefined" && (process.env.VITEST === "true" || process.env.NODE_ENV === "test");
+
+// Set PDF.js worker to legacy worker to maximize browser compatibility
+if (typeof window !== "undefined" && typeof window.Worker !== "undefined" && !isTest) {
+  import("pdfjs-dist/legacy/build/pdf.worker.mjs?worker")
+    .then((module) => {
+      const PDFWorker = module.default;
+      pdfjsLib.GlobalWorkerOptions.workerPort = new PDFWorker();
+    })
+    .catch((err) => {
+      console.error("Failed to load PDF.js worker:", err);
+    });
 }
 
 function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
