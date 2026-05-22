@@ -127,6 +127,13 @@ const EMPTY_CHAT_TRAINING: TrainingDataForChat = {
   userKnowledge: [],
   responseStyle: [],
 };
+function formatTrainingEntry(e: AiTrainingEntry): string {
+  let text = `### [${e.category}] ${e.title}\n${e.content}`;
+  if (e.attachmentName && e.extractedText) {
+    text += `\n\n[Dokumen Terlampir: ${e.attachmentName}]\n${e.extractedText}`;
+  }
+  return text;
+}
 
 function formatTrainingSections(td: TrainingDataForChat | AiTrainingEntry[]): string {
   let data: TrainingDataForChat;
@@ -145,13 +152,13 @@ function formatTrainingSections(td: TrainingDataForChat | AiTrainingEntry[]): st
 
   const sections: string[] = [];
   if (data.featureKnowledge && data.featureKnowledge.length > 0) {
-    sections.push(`## Konteks Fitur & Produk (Feature Knowledge)\n\nKonteks produk, fitur, module, dan aturan bisnis yang didokumentasikan oleh admin. Pakai ini sebagai acuan utama:\n\n${data.featureKnowledge.map((e) => `### [${e.category}] ${e.title}\n${e.content}`).join("\n\n")}`);
+    sections.push(`## Konteks Fitur & Produk (Feature Knowledge)\n\nKonteks produk, fitur, module, dan aturan bisnis yang didokumentasikan oleh admin. Pakai ini sebagai acuan utama:\n\n${data.featureKnowledge.map(formatTrainingEntry).join("\n\n")}`);
   }
   if (data.userKnowledge && data.userKnowledge.length > 0) {
-    sections.push(`## Konteks User & Persona (User Knowledge)\n\nData persona, behavior, research finding, dan pain point user yang didokumentasikan oleh admin:\n\n${data.userKnowledge.map((e) => `### [${e.category}] ${e.title}\n${e.content}`).join("\n\n")}`);
+    sections.push(`## Konteks User & Persona (User Knowledge)\n\nData persona, behavior, research finding, dan pain point user yang didokumentasikan oleh admin:\n\n${data.userKnowledge.map(formatTrainingEntry).join("\n\n")}`);
   }
   if (data.responseStyle && data.responseStyle.length > 0) {
-    sections.push(`## Panduan Gaya Jawaban (Response Style)\n\nInstruksi berikut mengubah cara kamu berkomunikasi. **Prioritaskan instruksi ini di atas aturan default** di section "Cara Kamu Berkomunikasi":\n\n${data.responseStyle.map((e) => `### [${e.category}] ${e.title}\n${e.content}`).join("\n\n")}`);
+    sections.push(`## Panduan Gaya Jawaban (Response Style)\n\nInstruksi berikut mengubah cara kamu berkomunikasi. **Prioritaskan instruksi ini di atas aturan default** di section "Cara Kamu Berkomunikasi":\n\n${data.responseStyle.map(formatTrainingEntry).join("\n\n")}`);
   }
   return sections.join("\n\n");
 }

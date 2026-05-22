@@ -47,10 +47,18 @@ Format:
 
 Fokus: visual deck, bukan laporan naratif. Jangan menulis paragraf panjang. Gunakan observasi, interpretasi, dan action hanya sebagai bullet pendek. Prioritaskan evidence screenshot/userflow yang tersedia di data. Kalau data/evidence kurang, jadikan itu insight visual sebagai evidence gap.`;
 
+function formatTrainingEntry(e: AiTrainingEntry): string {
+  let text = `### [${e.category}] ${e.title}\n${e.content}`;
+  if (e.attachmentName && e.extractedText) {
+    text += `\n\n[Dokumen Terlampir: ${e.attachmentName}]\n${e.extractedText}`;
+  }
+  return text;
+}
+
 function buildReportPrompt(documentTemplates: AiTrainingEntry[]): string {
   if (documentTemplates.length === 0) return VISUAL_DECK_REPORT_PROMPT;
   const templateSection = documentTemplates
-    .map((e) => `### [${e.category}] ${e.title}\n${e.content}`)
+    .map(formatTrainingEntry)
     .join("\n\n");
   return `${VISUAL_DECK_REPORT_PROMPT}\n\n## Instruksi Template dari Tim\n\nBerikut standar dan template yang HARUS diikuti saat membuat deck. Prioritaskan instruksi ini di atas format default:\n\n${templateSection}`;
 }

@@ -347,6 +347,10 @@ export type AiTrainingEntry = {
   category: AiTrainingCategory;
   title: string;
   content: string;
+  attachmentName?: string;
+  attachmentType?: string; // "pdf" | "docx"
+  attachmentSize?: number;
+  extractedText?: string;
   createdAt: string;
   updatedAt: string;
 };

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   Plus,
   Pencil,
@@ -7,6 +7,8 @@ import {
   Lightbulb,
   Loader2,
   BookOpen,
+  FileText,
+  Paperclip,
   // Feature Knowledge category icons
   Globe,
   Cpu,
@@ -44,6 +46,7 @@ import {
 } from "../data/firestore-db";
 import { UiButton } from "./primitives";
 import { toast } from "./toast";
+import { extractTextFromPdf, extractTextFromDocx } from "../services/document-parser";
 
 // ─── Domain Visual Config ─────────────────────────────────────────────────────
 
@@ -166,6 +169,16 @@ export function AiTrainingPage({
   const [confirmDelete, setConfirmDelete] = useState<AiTrainingEntry | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Attachment State
+  const [attachment, setAttachment] = useState<{
+    name: string;
+    type: string;
+    size: number;
+    extractedText: string;
+  } | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // ── Derived ───────────────────────────────────────────────────────────────
   const filteredEntries = useMemo(
     () => (filterCategory === "all" ? entries : entries.filter((e) => e.category === filterCategory)),
@@ -181,11 +194,49 @@ export function AiTrainingPage({
   const isAtLimit = entries.length >= MAX_ENTRIES_PER_DOMAIN;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (extension !== "pdf" && extension !== "docx") {
+      toast.error("Format file tidak didukung. Harap upload PDF atau DOCX.");
+      return;
+    }
+
+    setIsExtracting(true);
+    const toastId = toast.loading(`Membaca dokumen ${file.name}...`);
+
+    try {
+      let text = "";
+      if (extension === "pdf") {
+        text = await extractTextFromPdf(file);
+      } else {
+        text = await extractTextFromDocx(file);
+      }
+
+      setAttachment({
+        name: file.name,
+        type: extension,
+        size: file.size,
+        extractedText: text,
+      });
+      toast.resolve(toastId, "Dokumen berhasil dilampirkan.");
+    } catch (err) {
+      console.error(err);
+      toast.reject(toastId, err instanceof Error ? err.message : "Gagal membaca dokumen.");
+    } finally {
+      setIsExtracting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   function openAddForm() {
     setEditingEntry(null);
     setFormCategory(domainConfig.categories[0].key);
     setFormTitle("");
     setFormContent("");
+    setAttachment(null);
     setShowForm(true);
   }
 
@@ -194,12 +245,23 @@ export function AiTrainingPage({
     setFormCategory(entry.category);
     setFormTitle(entry.title);
     setFormContent(entry.content);
+    if (entry.attachmentName) {
+      setAttachment({
+        name: entry.attachmentName,
+        type: entry.attachmentType || "",
+        size: entry.attachmentSize || 0,
+        extractedText: entry.extractedText || "",
+      });
+    } else {
+      setAttachment(null);
+    }
     setShowForm(true);
   }
 
   function closeForm() {
     setShowForm(false);
     setEditingEntry(null);
+    setAttachment(null);
   }
 
   async function handleSave() {
@@ -217,6 +279,10 @@ export function AiTrainingPage({
         category: formCategory,
         title: formTitle.trim(),
         content: formContent.trim(),
+        attachmentName: attachment?.name || undefined,
+        attachmentType: attachment?.type || undefined,
+        attachmentSize: attachment?.size || undefined,
+        extractedText: attachment?.extractedText || undefined,
         createdAt: editingEntry?.createdAt || now,
         updatedAt: now,
       });
@@ -316,16 +382,16 @@ export function AiTrainingPage({
       <div
         className="animate-slide-up mb-6 flex items-start gap-3 rounded-xl border p-4"
         style={{
-          borderColor: "#e5e5e5",
-          background: visual.bgLight,
+          borderColor: "#bae6fd",
+          background: "#f0f9ff",
           boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
         }}
       >
         <div
           className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg"
-          style={{ background: `${visual.color}18` }}
+          style={{ background: "#0369a118" }}
         >
-          <Lightbulb size={16} strokeWidth={1.8} color={visual.color} />
+          <Lightbulb size={16} strokeWidth={1.8} color="#0369a1" />
         </div>
         <div>
           <p
@@ -571,6 +637,37 @@ export function AiTrainingPage({
                       >
                         {entry.content}
                       </p>
+                      {entry.attachmentName && (
+                        <div
+                          className="mt-2.5 flex items-center gap-2 rounded-lg border border-[#bae6fd] bg-[#f0f9ff] px-2.5 py-1.5 w-fit max-w-full"
+                        >
+                          <FileText size={14} className="text-[#0369a1] shrink-0" />
+                          <span
+                            className="truncate"
+                            style={{
+                              fontFamily: "Inter, sans-serif",
+                              fontWeight: 500,
+                              fontSize: 12,
+                              lineHeight: "16px",
+                              color: "#0369a1",
+                            }}
+                            title={entry.attachmentName}
+                          >
+                            {entry.attachmentName}
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: "Inter, sans-serif",
+                              fontWeight: 400,
+                              fontSize: 11,
+                              lineHeight: "16px",
+                              color: "#0284c7",
+                            }}
+                          >
+                            ({entry.attachmentSize ? (entry.attachmentSize / 1024).toFixed(1) : 0} KB)
+                          </span>
+                        </div>
+                      )}
                       <p
                         className="mt-2"
                         style={{
@@ -626,12 +723,6 @@ export function AiTrainingPage({
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-[#e5e5e5] px-5 py-4">
               <div className="flex items-center gap-2.5">
-                <div
-                  className="flex size-8 items-center justify-center rounded-lg"
-                  style={{ background: visual.bgLight }}
-                >
-                  <DomainIcon size={16} strokeWidth={1.8} color={visual.color} />
-                </div>
                 <h2
                   style={{
                     fontFamily: "Inter, sans-serif",
@@ -811,24 +902,85 @@ export function AiTrainingPage({
                 )}
               </div>
 
-              {/* Tip */}
-              <div
-                className="flex items-start gap-2 rounded-lg px-3 py-2.5"
-                style={{ background: "#f5f5f5" }}
-              >
-                <Lightbulb size={14} strokeWidth={1.8} color="#737373" className="mt-0.5 shrink-0" />
-                <p
+              {/* File Attachment */}
+              <div>
+                <label
                   style={{
                     fontFamily: "Inter, sans-serif",
-                    fontWeight: 400,
-                    fontSize: 12,
-                    lineHeight: "18px",
-                    color: "#737373",
+                    fontWeight: 500,
+                    fontSize: 14,
+                    lineHeight: "20px",
+                    color: "#344054",
+                    display: "block",
+                    marginBottom: 6,
                   }}
                 >
-                  Tulis sespesifik mungkin. Contoh yang baik: "Checkout harus support COD, e-wallet, dan
-                  virtual account. Minimum order Rp50.000."
-                </p>
+                  Lampiran Dokumen (PDF, DOCX)
+                </label>
+                
+                {attachment ? (
+                  <div className="flex items-center justify-between rounded-lg border border-[#bae6fd] bg-[#f0f9ff] px-3.5 py-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#bae6fd] text-[#0369a1]">
+                        <FileText size={16} strokeWidth={1.8} />
+                      </div>
+                      <div className="min-w-0">
+                        <p style={{
+                          fontFamily: "Inter, sans-serif",
+                          fontWeight: 500,
+                          fontSize: 13,
+                          lineHeight: "18px",
+                          color: "#0369a1",
+                        }} className="truncate">
+                          {attachment.name}
+                        </p>
+                        <p style={{
+                          fontFamily: "Inter, sans-serif",
+                          fontWeight: 400,
+                          fontSize: 11,
+                          lineHeight: "16px",
+                          color: "#0284c7",
+                        }}>
+                          {(attachment.size / 1024).toFixed(1)} KB • Teks berhasil diekstrak ({attachment.extractedText.length} karakter)
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAttachment(null)}
+                      className="rounded-md p-1 text-[#0369a1] hover:bg-[#e0f2fe] transition-colors"
+                      title="Hapus lampiran"
+                    >
+                      <Trash2 size={16} strokeWidth={1.8} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isExtracting}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#d4d4d4] bg-white py-4 text-sm font-semibold text-[#525252] hover:bg-[#fafafa] transition-colors disabled:opacity-50"
+                  >
+                    {isExtracting ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin text-[#02878d]" />
+                        Mengekstrak teks...
+                      </>
+                    ) : (
+                      <>
+                        <Paperclip size={16} strokeWidth={2} />
+                        Pilih file PDF atau DOCX
+                      </>
+                    )}
+                  </button>
+                )}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept=".pdf,.docx"
+                  className="hidden"
+                />
               </div>
             </div>
 
@@ -840,7 +992,7 @@ export function AiTrainingPage({
               <UiButton
                 variant="primary"
                 onClick={handleSave}
-                disabled={!formTitle.trim() || !formContent.trim() || isSaving || formContent.length > MAX_CONTENT_CHARS}
+                disabled={!formTitle.trim() || !formContent.trim() || isSaving || isExtracting || formContent.length > MAX_CONTENT_CHARS}
                 leadingIcon={isSaving ? <Loader2 size={16} className="animate-spin" /> : undefined}
               >
                 {isSaving ? "Menyimpan..." : editingEntry ? "Simpan Perubahan" : "Tambah Knowledge"}
