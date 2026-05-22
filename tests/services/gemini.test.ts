@@ -479,6 +479,138 @@ describe("collectImageEvidence", () => {
     expect(evidence[1].label).toContain("Figma design");
     expect(evidence[2].label).toContain("Userflow");
   });
+
+  it("returns empty when query does not mention feature name and no active context, and not a general visual query", () => {
+    const png = "data:image/png;base64,aGVsbG8=";
+    const features = [
+      {
+        id: "f-1",
+        module: "BIO",
+        name: "Perekaman Biometrik",
+        description: "Biometric scanning.",
+        squad: "Komodo",
+        poPic: "Faesol Afif",
+        featureStatus: "Released",
+        designSource: "PO / Squad",
+        designStatus: "Mismatch",
+        figmaAvailable: "Not Available",
+        actionNeeded: "Need Redesign",
+        uiScreens: [{ id: "screen-1", name: "Screen 1", existingDataUrl: png }],
+        lastUpdated: "2026-05-18T00:00:00.000Z",
+      },
+    ];
+
+    const evidence = collectImageEvidence(features, "bisa bantu apa saja di dashboard ini?", undefined, []);
+    expect(evidence).toHaveLength(0);
+  });
+
+  it("scans all features for a general visual query if no active context is present", () => {
+    const png = "data:image/png;base64,aGVsbG8=";
+    const features = [
+      {
+        id: "f-1",
+        module: "BIO",
+        name: "Perekaman Biometrik",
+        description: "Biometric scanning.",
+        squad: "Komodo",
+        poPic: "Faesol Afif",
+        featureStatus: "Released",
+        designSource: "PO / Squad",
+        designStatus: "Mismatch",
+        figmaAvailable: "Not Available",
+        actionNeeded: "Need Redesign",
+        uiScreens: [{ id: "screen-1", name: "Screen 1", existingDataUrl: png }],
+        lastUpdated: "2026-05-18T00:00:00.000Z",
+      },
+    ];
+
+    const evidence = collectImageEvidence(features, "tampilkan screenshot", undefined, []);
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0].label).toContain("Perekaman Biometrik");
+  });
+
+  it("resolves the feature by name match or keyword match in userMessage", () => {
+    const png = "data:image/png;base64,aGVsbG8=";
+    const features = [
+      {
+        id: "f-1",
+        module: "BIO",
+        name: "Perekaman Biometrik",
+        description: "Biometric scanning.",
+        squad: "Komodo",
+        poPic: "Faesol Afif",
+        featureStatus: "Released",
+        designSource: "PO / Squad",
+        designStatus: "Mismatch",
+        figmaAvailable: "Not Available",
+        actionNeeded: "Need Redesign",
+        uiScreens: [{ id: "screen-1", name: "Screen 1", existingDataUrl: png }],
+        lastUpdated: "2026-05-18T00:00:00.000Z",
+      },
+    ];
+
+    // Explicit name/keyword check
+    const evidence = collectImageEvidence(features, "analisa UX perekaman biometrik", undefined, []);
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0].label).toContain("Perekaman Biometrik");
+  });
+
+  it("resolves the feature from chatHistory lookback when userMessage is a context-blind follow-up query", () => {
+    const png = "data:image/png;base64,aGVsbG8=";
+    const features = [
+      {
+        id: "f-1",
+        module: "BIO",
+        name: "Perekaman Biometrik",
+        description: "Biometric scanning.",
+        squad: "Komodo",
+        poPic: "Faesol Afif",
+        featureStatus: "Released",
+        designSource: "PO / Squad",
+        designStatus: "Mismatch",
+        figmaAvailable: "Not Available",
+        actionNeeded: "Need Redesign",
+        uiScreens: [{ id: "screen-1", name: "Screen 1", existingDataUrl: png }],
+        lastUpdated: "2026-05-18T00:00:00.000Z",
+      },
+      {
+        id: "f-2",
+        module: "PRS",
+        name: "Timer Blocker PRS",
+        description: "Timer blocker.",
+        squad: "Komodo",
+        poPic: "Faesol Afif",
+        featureStatus: "Released",
+        designSource: "PO / Squad",
+        designStatus: "Mismatch",
+        figmaAvailable: "Not Available",
+        actionNeeded: "Need Redesign",
+        uiScreens: [{ id: "screen-2", name: "Screen 2", existingDataUrl: png }],
+        lastUpdated: "2026-05-18T00:00:00.000Z",
+      },
+    ];
+
+    const chatHistory = [
+      {
+        id: "msg-1",
+        role: "user" as const,
+        content: "Halo, saya mau menanyakan terkait fitur baru perekaman biometrik.",
+        timestamp: new Date(),
+      },
+      {
+        id: "msg-2",
+        role: "assistant" as const,
+        content: "Halo! Ada yang bisa saya bantu dengan fitur Perekaman Biometrik?",
+        timestamp: new Date(),
+      },
+    ];
+
+    // Current query is context-blind: "minta analisa UX-nya" (doesn't name the feature, but matches visual request)
+    const evidence = collectImageEvidence(features, "minta analisa UX-nya", undefined, chatHistory);
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0].label).toContain("Perekaman Biometrik");
+    expect(evidence[0].label).not.toContain("Timer Blocker PRS");
+  });
 });
 
 // ─── Tests: SSE parsing — yields text chunks ──────────────────────────────────

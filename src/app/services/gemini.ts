@@ -504,7 +504,8 @@ function pushImageEvidence(
 export function collectImageEvidence(
   features: Feature[],
   userMessage?: string,
-  currentViewContext?: CurrentViewContext
+  currentViewContext?: CurrentViewContext,
+  chatHistory?: ChatMessage[]
 ): ImageEvidence[] {
   const items: ImageEvidence[] = [];
 
@@ -555,6 +556,43 @@ export function collectImageEvidence(
           addTarget(feature);
           break;
         }
+      }
+    }
+  }
+
+  // Context D: Look back in chatHistory to see if a feature was previously mentioned
+  if (!targetFeatures.length && chatHistory && chatHistory.length > 0) {
+    // Scan backwards from the most recent messages to find the first mentioned feature
+    for (let i = chatHistory.length - 1; i >= 0; i--) {
+      const histMsg = chatHistory[i].content;
+      if (!histMsg) continue;
+      const histMsgLower = histMsg.toLowerCase();
+
+      // Check for feature names in this historical message
+      for (const feature of features) {
+        if (!feature.name) continue;
+        const nameLower = feature.name.toLowerCase();
+
+        // Direct full-name match in historical message
+        if (histMsgLower.includes(nameLower)) {
+          addTarget(feature);
+        } else {
+          // Keyword match
+          const queryWords = histMsgLower
+            .split(/[^a-zA-Z0-9]/)
+            .filter((w) => w.length >= 4 && !["fitur", "module", "squad", "desain", "design", "analisa", "analisis", "tampil", "tampilkan", "lihat", "detail"].includes(w));
+          for (const word of queryWords) {
+            if (nameLower.includes(word)) {
+              addTarget(feature);
+              break;
+            }
+          }
+        }
+      }
+      
+      // If we found any target features in this message, we stop looking further back in history
+      if (targetFeatures.length > 0) {
+        break;
       }
     }
   }
@@ -696,7 +734,7 @@ export async function* streamGemini(
 
   const systemInstruction = buildSystemInstruction(features, types, trainingData, mode, options.currentViewContext);
   const imageEvidence = shouldSendImageEvidence(userMessage, mode)
-    ? collectImageEvidence(features, userMessage, options.currentViewContext)
+    ? collectImageEvidence(features, userMessage, options.currentViewContext, chatHistory)
     : [];
   const history = buildChatHistory(
     chatHistory.filter((m) => !(m.role === "assistant" && !m.content))
