@@ -351,6 +351,8 @@ export type AiTrainingEntry = {
   attachmentType?: string; // "pdf" | "docx"
   attachmentSize?: number;
   extractedText?: string;
+  attachmentUrl?: string;
+  attachmentPath?: string;
   createdAt: string;
   updatedAt: string;
 };

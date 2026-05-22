@@ -9,6 +9,9 @@ import {
   BookOpen,
   FileText,
   Paperclip,
+  CloudUpload,
+  CheckCircle2,
+  XCircle,
   // Feature Knowledge category icons
   Globe,
   Cpu,
@@ -47,6 +50,8 @@ import {
 import { UiButton } from "./primitives";
 import { toast } from "./toast";
 import { extractTextFromPdf, extractTextFromDocx } from "../services/document-parser";
+import { auth } from "../data/firebase";
+import { uploadTrainingDocument, deleteReportArtifact } from "../services/report-artifacts";
 
 // ─── Domain Visual Config ─────────────────────────────────────────────────────
 
@@ -175,9 +180,17 @@ export function AiTrainingPage({
     type: string;
     size: number;
     extractedText: string;
+    url?: string;
+    path?: string;
   } | null>(null);
-  const [isExtracting, setIsExtracting] = useState(false);
+  const [uploadState, setUploadState] = useState<"idle" | "uploading" | "error" | "complete">("idle");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState("");
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [deletedAttachmentPath, setDeletedAttachmentPath] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const activeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const filteredEntries = useMemo(
@@ -193,9 +206,14 @@ export function AiTrainingPage({
 
   const isAtLimit = entries.length >= MAX_ENTRIES_PER_DOMAIN;
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + " B";
+    return (bytes / 1024).toFixed(0) + " KB";
+  };
+
   // ── Handlers ──────────────────────────────────────────────────────────────
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  const processFile = (file: File) => {
     if (!file) return;
 
     const extension = file.name.split(".").pop()?.toLowerCase();
@@ -204,32 +222,117 @@ export function AiTrainingPage({
       return;
     }
 
-    setIsExtracting(true);
-    const toastId = toast.loading(`Membaca dokumen ${file.name}...`);
-
-    try {
-      let text = "";
-      if (extension === "pdf") {
-        text = await extractTextFromPdf(file);
-      } else {
-        text = await extractTextFromDocx(file);
-      }
-
-      setAttachment({
-        name: file.name,
-        type: extension,
-        size: file.size,
-        extractedText: text,
-      });
-      toast.resolve(toastId, "Dokumen berhasil dilampirkan.");
-    } catch (err) {
-      console.error(err);
-      toast.reject(toastId, err instanceof Error ? err.message : "Gagal membaca dokumen.");
-    } finally {
-      setIsExtracting(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+    if (activeIntervalRef.current) {
+      clearInterval(activeIntervalRef.current);
     }
-  }
+
+    setUploadState("uploading");
+    setUploadProgress(0);
+    setUploadError("");
+    setSelectedFile(file);
+
+    let currentProgress = 0;
+    let textResult = "";
+    let parserDone = false;
+    let parserError = "";
+
+    // Start text extraction immediately
+    const parsePromise = (async () => {
+      if (extension === "pdf") {
+        return await extractTextFromPdf(file);
+      } else {
+        return await extractTextFromDocx(file);
+      }
+    })();
+
+    parsePromise
+      .then((text) => {
+        textResult = text;
+        parserDone = true;
+      })
+      .catch((err) => {
+        parserError = err instanceof Error ? err.message : "Gagal membaca dokumen.";
+        parserDone = true;
+      });
+
+    // Simulate progress
+    const interval = setInterval(() => {
+      currentProgress += Math.floor(Math.random() * 15) + 10;
+      
+      if (currentProgress >= 100) {
+        if (parserDone) {
+          clearInterval(interval);
+          activeIntervalRef.current = null;
+          if (parserError) {
+            setUploadState("error");
+            setUploadError(parserError);
+            setSelectedFile(null);
+            setAttachment(null);
+            toast.error(parserError);
+          } else {
+            setUploadState("complete");
+            setUploadProgress(100);
+            setAttachment({
+              name: file.name,
+              type: extension,
+              size: file.size,
+              extractedText: textResult,
+            });
+            toast.success("Dokumen berhasil diproses.");
+          }
+        } else {
+          // Hold at 95% until parser completes
+          setUploadProgress(95);
+        }
+      } else {
+        setUploadProgress(currentProgress);
+      }
+    }, 150);
+
+    activeIntervalRef.current = interval;
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+    e.target.value = "";
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setIsDragActive(true);
+    } else if (e.type === "dragleave") {
+      setIsDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+    
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processFile(file);
+    }
+  };
+
+  const clearFile = () => {
+    if (activeIntervalRef.current) {
+      clearInterval(activeIntervalRef.current);
+      activeIntervalRef.current = null;
+    }
+    if (attachment?.path) {
+      setDeletedAttachmentPath(attachment.path);
+    }
+    setAttachment(null);
+    setSelectedFile(null);
+    setUploadState("idle");
+    setUploadProgress(0);
+    setUploadError("");
+  };
 
   function openAddForm() {
     setEditingEntry(null);
@@ -237,6 +340,11 @@ export function AiTrainingPage({
     setFormTitle("");
     setFormContent("");
     setAttachment(null);
+    setSelectedFile(null);
+    setUploadState("idle");
+    setUploadProgress(0);
+    setUploadError("");
+    setDeletedAttachmentPath(null);
     setShowForm(true);
   }
 
@@ -245,23 +353,40 @@ export function AiTrainingPage({
     setFormCategory(entry.category);
     setFormTitle(entry.title);
     setFormContent(entry.content);
+    setDeletedAttachmentPath(null);
+    setSelectedFile(null);
+    setUploadProgress(0);
+    setUploadError("");
     if (entry.attachmentName) {
       setAttachment({
         name: entry.attachmentName,
         type: entry.attachmentType || "",
         size: entry.attachmentSize || 0,
         extractedText: entry.extractedText || "",
+        url: entry.attachmentUrl,
+        path: entry.attachmentPath,
       });
+      setUploadState("complete");
     } else {
       setAttachment(null);
+      setUploadState("idle");
     }
     setShowForm(true);
   }
 
   function closeForm() {
+    if (activeIntervalRef.current) {
+      clearInterval(activeIntervalRef.current);
+      activeIntervalRef.current = null;
+    }
     setShowForm(false);
     setEditingEntry(null);
     setAttachment(null);
+    setSelectedFile(null);
+    setUploadState("idle");
+    setUploadProgress(0);
+    setUploadError("");
+    setDeletedAttachmentPath(null);
   }
 
   async function handleSave() {
@@ -273,24 +398,59 @@ export function AiTrainingPage({
 
     try {
       const now = new Date().toISOString();
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error("Pengguna tidak terautentikasi. Silakan login kembali.");
+      }
+
+      const entryId = editingEntry?.id || `train-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      let currentAttachment = attachment;
+
+      // 1. Delete old storage file if marked for deletion
+      if (deletedAttachmentPath) {
+        try {
+          await deleteReportArtifact(deletedAttachmentPath);
+        } catch (err) {
+          console.error("Gagal menghapus file lama dari storage:", err);
+        }
+      }
+
+      // 2. Upload new file if selected
+      if (selectedFile) {
+        const uploadRes = await uploadTrainingDocument({
+          file: selectedFile,
+          userId: user.uid,
+          entryId,
+        });
+        currentAttachment = {
+          ...currentAttachment!,
+          url: uploadRes.url,
+          path: uploadRes.storagePath,
+        };
+      }
+
+      // 3. Save entry to Firestore
       await saveAiTrainingEntry({
-        id: editingEntry?.id || `train-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        id: entryId,
         domain,
         category: formCategory,
         title: formTitle.trim(),
         content: formContent.trim(),
-        attachmentName: attachment?.name || undefined,
-        attachmentType: attachment?.type || undefined,
-        attachmentSize: attachment?.size || undefined,
-        extractedText: attachment?.extractedText || undefined,
+        attachmentName: currentAttachment?.name || undefined,
+        attachmentType: currentAttachment?.type || undefined,
+        attachmentSize: currentAttachment?.size || undefined,
+        extractedText: currentAttachment?.extractedText || undefined,
+        attachmentUrl: currentAttachment?.url || undefined,
+        attachmentPath: currentAttachment?.path || undefined,
         createdAt: editingEntry?.createdAt || now,
         updatedAt: now,
       });
+
       toast.resolve(t, editingEntry ? "Knowledge berhasil diperbarui!" : "Knowledge berhasil ditambahkan!");
       closeForm();
     } catch (err) {
       console.error("Failed to save training entry:", err);
-      toast.reject(t, "Gagal menyimpan. Coba lagi.");
+      toast.reject(t, err instanceof Error ? err.message : "Gagal menyimpan. Coba lagi.");
     } finally {
       setIsSaving(false);
     }
@@ -302,6 +462,13 @@ export function AiTrainingPage({
     const t = toast.loading("Menghapus knowledge...");
 
     try {
+      if (confirmDelete.attachmentPath) {
+        try {
+          await deleteReportArtifact(confirmDelete.attachmentPath);
+        } catch (err) {
+          console.error("Gagal menghapus lampiran dari storage:", err);
+        }
+      }
       await deleteAiTrainingEntry(confirmDelete.id);
       toast.resolve(t, "Knowledge berhasil dihapus.");
       setConfirmDelete(null);
@@ -918,62 +1085,141 @@ export function AiTrainingPage({
                   Lampiran Dokumen (PDF, DOCX)
                 </label>
                 
-                {attachment ? (
-                  <div className="flex items-center justify-between rounded-lg border border-[#bae6fd] bg-[#f0f9ff] px-3.5 py-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#bae6fd] text-[#0369a1]">
-                        <FileText size={16} strokeWidth={1.8} />
+                {uploadState === "idle" && (
+                  <div
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`flex cursor-pointer flex-col items-center justify-center gap-2.5 rounded-xl border border-dashed px-4 py-6 transition-all duration-200 ${
+                      isDragActive
+                        ? "border-[#2e90fa] bg-[#eff8ff]"
+                        : "border-[#d4d4d4] bg-white hover:bg-[#fafafa]"
+                    }`}
+                  >
+                    <div className="flex size-9 items-center justify-center rounded-lg border border-[#e5e5e5] shadow-sm bg-white text-[#525252]">
+                      <CloudUpload size={18} strokeWidth={2} />
+                    </div>
+                    <div className="flex flex-col items-center text-center gap-0.5">
+                      <p className="text-sm text-[#525252]" style={{ fontFamily: "Inter, sans-serif" }}>
+                        <span className="font-semibold text-[#175cd3]">Pilih dokumen</span> atau drag & drop
+                      </p>
+                      <p className="text-xs text-[#737373]" style={{ fontFamily: "Inter, sans-serif" }}>
+                        PDF atau DOCX (Maksimal 10MB)
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {uploadState === "uploading" && (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-start gap-4 p-4 rounded-xl border border-[#e5e5e5] bg-white">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#eff8ff]">
+                        <FileText size={20} color="#175cd3" />
                       </div>
-                      <div className="min-w-0">
-                        <p style={{
-                          fontFamily: "Inter, sans-serif",
-                          fontWeight: 500,
-                          fontSize: 13,
-                          lineHeight: "18px",
-                          color: "#0369a1",
-                        }} className="truncate">
-                          {attachment.name}
-                        </p>
-                        <p style={{
-                          fontFamily: "Inter, sans-serif",
-                          fontWeight: 400,
-                          fontSize: 11,
-                          lineHeight: "16px",
-                          color: "#0284c7",
-                        }}>
-                          {(attachment.size / 1024).toFixed(1)} KB • Teks berhasil diekstrak ({attachment.extractedText.length} karakter)
+                      <div className="flex flex-1 flex-col gap-1.5 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex flex-col min-w-0">
+                            <span className="truncate text-sm font-medium text-[#171717]">{selectedFile?.name || "Memproses dokumen..."}</span>
+                            <div className="flex items-center gap-1.5 text-xs text-[#737373]">
+                              <span>{selectedFile ? formatSize(selectedFile.size * (uploadProgress / 100)) : "0 KB"} dari {selectedFile ? formatSize(selectedFile.size) : "0 KB"}</span>
+                              <span className="text-[#d4d4d4]">|</span>
+                              <div className="flex items-center gap-1 text-[#737373]">
+                                <Loader2 size={12} className="animate-spin text-[#175cd3]" />
+                                <span>Mengekstrak teks...</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Progress bar */}
+                        <div className="flex items-center gap-3 mt-1">
+                          <div className="h-2 flex-1 rounded-full bg-[#f5f5f5] overflow-hidden">
+                            <div className="h-full bg-[#2e90fa] transition-all duration-200" style={{ width: `${uploadProgress}%` }} />
+                          </div>
+                          <span className="text-xs font-medium text-[#525252] w-8 text-right">{uploadProgress}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {uploadState === "error" && (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-start gap-4 p-4 rounded-xl border border-[#fda29b] bg-white">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#fef3f2]">
+                        <FileText size={20} color="#b42318" />
+                      </div>
+                      <div className="flex flex-1 flex-col gap-1.5 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex flex-col min-w-0">
+                            <span className="truncate text-sm font-medium text-[#171717]">{selectedFile?.name || "Dokumen gagal"}</span>
+                            <div className="flex items-center gap-1.5 text-xs text-[#737373]">
+                              <div className="flex items-center gap-1 text-[#b42318]">
+                                <XCircle size={12} /> <span>Gagal mengekstrak</span>
+                              </div>
+                            </div>
+                          </div>
+                          <button type="button" onClick={clearFile} className="text-[#a3a3a3] hover:text-[#525252] transition-colors p-1" title="Hapus file">
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                        <p className="mt-1 text-left text-xs font-medium text-[#b42318]">
+                          {uploadError || "Terjadi kesalahan saat memproses dokumen."}
                         </p>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setAttachment(null)}
-                      className="rounded-md p-1 text-[#0369a1] hover:bg-[#e0f2fe] transition-colors"
-                      title="Hapus lampiran"
-                    >
-                      <Trash2 size={16} strokeWidth={1.8} />
-                    </button>
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isExtracting}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#d4d4d4] bg-white py-4 text-sm font-semibold text-[#525252] hover:bg-[#fafafa] transition-colors disabled:opacity-50"
-                  >
-                    {isExtracting ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin text-[#02878d]" />
-                        Mengekstrak teks...
-                      </>
-                    ) : (
-                      <>
-                        <Paperclip size={16} strokeWidth={2} />
-                        Pilih file PDF atau DOCX
-                      </>
-                    )}
-                  </button>
                 )}
+
+                {uploadState === "complete" && attachment && (
+                  <div className="overflow-hidden rounded-xl border border-[#b2ddff] bg-white shadow-sm">
+                    <div className="flex items-center justify-between gap-3 px-4 py-3 bg-[#eff8ff]/50">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#eff8ff] text-[#175cd3]">
+                          <CheckCircle2 size={18} strokeWidth={1.67} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-[#171717]">{attachment.name}</p>
+                          <p className="text-xs text-[#525252]">
+                            {formatSize(attachment.size)} • Teks berhasil diekstrak ({attachment.extractedText.length} karakter)
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {attachment.url && (
+                          <a
+                            href={attachment.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="press-down flex size-8 items-center justify-center rounded-lg text-[#525252] transition-colors hover:bg-[#fafafa] hover:text-[#175cd3]"
+                            title="Lihat dokumen"
+                          >
+                            <Eye size={16} strokeWidth={1.67} />
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="press-down flex size-8 items-center justify-center rounded-lg text-[#525252] transition-colors hover:bg-[#fafafa] hover:text-[#175cd3]"
+                          title="Ganti dokumen"
+                        >
+                          <CloudUpload size={16} strokeWidth={1.67} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={clearFile}
+                          className="press-down flex size-8 items-center justify-center rounded-lg text-[#b42318] transition-colors hover:bg-[#fef3f2]"
+                          title="Hapus dokumen"
+                        >
+                          <Trash2 size={16} strokeWidth={1.67} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -992,7 +1238,7 @@ export function AiTrainingPage({
               <UiButton
                 variant="primary"
                 onClick={handleSave}
-                disabled={!formTitle.trim() || !formContent.trim() || isSaving || isExtracting || formContent.length > MAX_CONTENT_CHARS}
+                disabled={!formTitle.trim() || !formContent.trim() || isSaving || uploadState === "uploading" || formContent.length > MAX_CONTENT_CHARS}
                 leadingIcon={isSaving ? <Loader2 size={16} className="animate-spin" /> : undefined}
               >
                 {isSaving ? "Menyimpan..." : editingEntry ? "Simpan Perubahan" : "Tambah Knowledge"}

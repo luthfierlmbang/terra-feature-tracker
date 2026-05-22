@@ -68,3 +68,33 @@ export async function deleteReportArtifact(storagePath: string): Promise<void> {
   }
   await deleteObject(ref(storage, storagePath));
 }
+
+export async function uploadTrainingDocument({
+  file,
+  userId,
+  entryId,
+}: {
+  file: File;
+  userId: string;
+  entryId: string;
+}): Promise<{ url: string; storagePath: string }> {
+  if (!storage) {
+    throw new Error("Firebase Storage belum dikonfigurasi. File tidak dapat disimpan.");
+  }
+
+  const safeFileName = file.name.replace(/[^a-z0-9._-]+/gi, "-").toLowerCase();
+  const storagePath = `report-artifacts/${userId}/training-docs/${entryId}/${safeFileName}`;
+  const artifactRef = ref(storage, storagePath);
+
+  await withTimeout(
+    uploadBytes(artifactRef, file, {
+      contentType: file.type || "application/octet-stream",
+    }),
+    REPORT_UPLOAD_TIMEOUT_MS,
+    "Upload Dokumen"
+  );
+
+  const url = await withTimeout(getDownloadURL(artifactRef), REPORT_UPLOAD_TIMEOUT_MS, "Ambil URL Dokumen");
+
+  return { url, storagePath };
+}
