@@ -27,10 +27,12 @@ import {
   saveUser,
   migrateFromLocalStorage,
   ensureConfigExists,
+  groupEntriesByDomain,
   INITIAL_SQUAD_OWNERS,
   INITIAL_MODULE_SQUADS,
   type UserAccount,
   type AiTrainingEntry,
+  type AiTrainingDomain,
 } from "./data/firestore-db";
 import {
   FEATURE_STATUSES,
@@ -152,6 +154,7 @@ export default function App() {
   const [showAiPanel, setShowAiPanel] = useState(false);
   const [hasLocalData, setHasLocalData] = useState(false);
   const [aiTrainingEntries, setAiTrainingEntries] = useState<AiTrainingEntry[]>([]);
+  const trainingByDomain = useMemo(() => groupEntriesByDomain(aiTrainingEntries), [aiTrainingEntries]);
 
   // Refs to always hold the latest config state — avoids stale closures in
   // sequential saveConfig calls (e.g. addItem calls onChange then onSquadOwnerChange)
@@ -680,9 +683,15 @@ export default function App() {
                   </div>
                 )}
 
-                {activeNav === "ai-training" && (
+                {(activeNav === "ai-feature-knowledge" ||
+                  activeNav === "ai-user-knowledge" ||
+                  activeNav === "ai-response-style" ||
+                  activeNav === "ai-document-template") && (
                   <div className="animate-fade-in h-full overflow-y-auto">
-                    <AiTrainingPage entries={aiTrainingEntries} />
+                    <AiTrainingPage
+                      domain={activeNav.replace("ai-", "").replace(/-/g, "_") as AiTrainingDomain}
+                      entries={trainingByDomain[activeNav.replace("ai-", "").replace(/-/g, "_") as AiTrainingDomain]}
+                    />
                   </div>
                 )}
               </>

@@ -311,17 +311,39 @@ export async function migrateFromLocalStorage(force = false): Promise<{
   }
 }
 
-// ─── AI Training Knowledge Base ───────────────────────────────────────────────
+// ─── AI Training Knowledge Base (4 Domains) ──────────────────────────────────
+
+export type AiTrainingDomain =
+  | "feature_knowledge"
+  | "user_knowledge"
+  | "response_style"
+  | "document_template";
 
 export type AiTrainingCategory =
+  // feature_knowledge sub-categories
   | "product_context"
-  | "design_process"
-  | "team_convention"
-  | "domain_knowledge"
-  | "qa_example";
+  | "module_context"
+  | "business_rule"
+  | "squad_convention"
+  // user_knowledge sub-categories
+  | "user_persona"
+  | "user_behavior"
+  | "research_finding"
+  | "pain_point"
+  // response_style sub-categories
+  | "tone_guide"
+  | "answer_format"
+  | "report_format"
+  | "forbidden_pattern"
+  // document_template sub-categories
+  | "deck_structure"
+  | "slide_template"
+  | "metric_standard"
+  | "visual_guide";
 
 export type AiTrainingEntry = {
   id: string;
+  domain: AiTrainingDomain;
   category: AiTrainingCategory;
   title: string;
   content: string;
@@ -329,13 +351,102 @@ export type AiTrainingEntry = {
   updatedAt: string;
 };
 
-export const AI_TRAINING_CATEGORIES: { key: AiTrainingCategory; label: string; description: string }[] = [
-  { key: "product_context", label: "Product Context", description: "Konteks produk, goals, dan background perusahaan." },
-  { key: "design_process", label: "Design Process", description: "Alur kerja desain, standar, dan metodologi tim." },
-  { key: "team_convention", label: "Team Convention", description: "Konvensi penamaan, aturan tim, dan terminologi internal." },
-  { key: "domain_knowledge", label: "Domain Knowledge", description: "Pengetahuan domain bisnis dan industri yang relevan." },
-  { key: "qa_example", label: "Q&A Example", description: "Contoh pertanyaan-jawaban untuk melatih akurasi AI." },
+export type AiTrainingDomainConfig = {
+  key: AiTrainingDomain;
+  label: string;
+  description: string;
+  categories: { key: AiTrainingCategory; label: string; description: string }[];
+};
+
+export const AI_TRAINING_DOMAINS: AiTrainingDomainConfig[] = [
+  {
+    key: "feature_knowledge",
+    label: "Feature Knowledge",
+    description: "Konteks produk, fitur, module, bisnis, dan konvensi squad.",
+    categories: [
+      { key: "product_context", label: "Product Context", description: "Background produk, visi, misi, dan goals perusahaan." },
+      { key: "module_context", label: "Module Context", description: "Konteks spesifik modul/area produk (Checkout, Homepage, dll)." },
+      { key: "business_rule", label: "Business Rule", description: "Aturan bisnis, constraint, dan requirement domain." },
+      { key: "squad_convention", label: "Squad Convention", description: "Konvensi kerja, naming, dan aturan internal tim/squad." },
+    ],
+  },
+  {
+    key: "user_knowledge",
+    label: "User Knowledge",
+    description: "Persona, behavior, research finding, dan pain point user.",
+    categories: [
+      { key: "user_persona", label: "User Persona", description: "Profil persona user: demografi, goals, dan motivasi." },
+      { key: "user_behavior", label: "User Behavior", description: "Pola perilaku, preferensi, dan kebiasaan user." },
+      { key: "research_finding", label: "Research Finding", description: "Hasil riset: usability test, survey, analytics insight." },
+      { key: "pain_point", label: "Pain Point", description: "Masalah, friction, dan keluhan utama user." },
+    ],
+  },
+  {
+    key: "response_style",
+    label: "Response Style",
+    description: "Cara AI menjawab pertanyaan dan membuat report/summary.",
+    categories: [
+      { key: "tone_guide", label: "Tone Guide", description: "Gaya bahasa, formalitas, dan persona AI saat menjawab." },
+      { key: "answer_format", label: "Answer Format", description: "Format jawaban: panjang, struktur, bullet vs paragraf." },
+      { key: "report_format", label: "Report Format", description: "Standar format saat generate status report atau summary." },
+      { key: "forbidden_pattern", label: "Forbidden Pattern", description: "Pola jawaban yang harus dihindari AI." },
+    ],
+  },
+  {
+    key: "document_template",
+    label: "Document Template",
+    description: "Template dan standar saat generate PDF deck.",
+    categories: [
+      { key: "deck_structure", label: "Deck Structure", description: "Urutan dan jenis slide yang harus ada di deck." },
+      { key: "slide_template", label: "Slide Template", description: "Template konten per jenis slide (cover, summary, dll)." },
+      { key: "metric_standard", label: "Metric Standard", description: "Metrik utama yang harus ditampilkan di deck." },
+      { key: "visual_guide", label: "Visual Guide", description: "Panduan visual: warna, tone, dan presentasi deck." },
+    ],
+  },
 ];
+
+/** Flat list of all categories across all domains, for backward compat */
+export const AI_TRAINING_CATEGORIES = AI_TRAINING_DOMAINS.flatMap((d) => d.categories);
+
+/** Get the domain config for a given domain key */
+export function getDomainConfig(domain: AiTrainingDomain): AiTrainingDomainConfig {
+  return AI_TRAINING_DOMAINS.find((d) => d.key === domain)!;
+}
+
+/** Get the domain key for a given category key (reverse lookup) */
+export function domainForCategory(category: AiTrainingCategory): AiTrainingDomain {
+  for (const domain of AI_TRAINING_DOMAINS) {
+    if (domain.categories.some((c) => c.key === category)) return domain.key;
+  }
+  return "feature_knowledge";
+}
+
+/** Group a flat entries array by domain */
+export function groupEntriesByDomain(
+  entries: AiTrainingEntry[]
+): Record<AiTrainingDomain, AiTrainingEntry[]> {
+  const grouped: Record<AiTrainingDomain, AiTrainingEntry[]> = {
+    feature_knowledge: [],
+    user_knowledge: [],
+    response_style: [],
+    document_template: [],
+  };
+  for (const entry of entries) {
+    const domain = entry.domain || domainForCategory(entry.category);
+    grouped[domain].push(entry);
+  }
+  // Sort each domain by updatedAt or createdAt descending safely
+  for (const key of Object.keys(grouped) as AiTrainingDomain[]) {
+    grouped[key].sort((a, b) => {
+      const dateA = a.updatedAt || a.createdAt || "";
+      const dateB = b.updatedAt || b.createdAt || "";
+      const strA = typeof dateA === "string" ? dateA : (dateA instanceof Date ? dateA.toISOString() : "");
+      const strB = typeof dateB === "string" ? dateB : (dateB instanceof Date ? dateB.toISOString() : "");
+      return strB.localeCompare(strA);
+    });
+  }
+  return grouped;
+}
 
 const aiTrainingCol = () =>
   collection(db, "workspaces", WORKSPACE_ID, "ai-training");

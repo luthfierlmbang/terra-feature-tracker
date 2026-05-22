@@ -26,6 +26,7 @@ import {
   deleteChatSession,
   subscribeToChatSessions,
   deriveChatTitle,
+  groupEntriesByDomain,
 } from "../../data/firestore-db";
 import { deleteReportArtifact } from "../../services/report-artifacts";
 import { generateVisualDeckReport } from "../../services/report-generation";
@@ -167,6 +168,20 @@ export function AiAgentPanel({
   const reportAttachmentsRef = useRef(reportAttachments);
 
   const currentMode = MODES.find((m) => m.key === mode)!;
+
+  // ── Group training entries by domain for Gemini injection ────────────
+  const trainingByDomain = useMemo(() => groupEntriesByDomain(trainingEntries), [trainingEntries]);
+  const chatTrainingData = useMemo(() => ({
+    featureKnowledge: trainingByDomain.feature_knowledge,
+    userKnowledge: trainingByDomain.user_knowledge,
+    responseStyle: trainingByDomain.response_style,
+  }), [trainingByDomain]);
+  const reportTrainingData = useMemo(() => ({
+    featureKnowledge: trainingByDomain.feature_knowledge,
+    userKnowledge: trainingByDomain.user_knowledge,
+    responseStyle: trainingByDomain.response_style,
+    documentTemplate: trainingByDomain.document_template,
+  }), [trainingByDomain]);
 
   // ── Subscribe to chat sessions for the current user ─────────────────────
 
@@ -345,7 +360,7 @@ export function AiAgentPanel({
         trimmedInput,
         features,
         types,
-        trainingEntries,
+        chatTrainingData,
         mode,
         messages.slice(-10),
         aiModel
@@ -420,7 +435,7 @@ export function AiAgentPanel({
       const persistedAttachment = await generateVisualDeckReport({
         features,
         types,
-        trainingEntries,
+        trainingData: reportTrainingData,
         chatHistory: messages.slice(-10),
         aiModel,
         fileName,

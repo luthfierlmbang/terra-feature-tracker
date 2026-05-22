@@ -22,7 +22,7 @@
 import { auth } from "../data/firebase";
 import type { Feature } from "../data/features";
 import type { TypesState } from "../components/customize-types";
-import type { AiTrainingEntry } from "../data/firestore-db";
+import { type AiTrainingEntry, groupEntriesByDomain } from "../data/firestore-db";
 import type { ReportAttachmentMetadata } from "./report-types";
 
 // ─── Constants (static identity — never changes) ──────────────────────────────
@@ -116,10 +116,50 @@ export const MODE_SYSTEM_PROMPTS: Record<AgentMode, string> = {
 // yang bisa tertimpa user. Ini adalah pendekatan paling robust sesuai
 // dokumentasi Gemini API v1beta.
 
+export type TrainingDataForChat = {
+  featureKnowledge: AiTrainingEntry[];
+  userKnowledge: AiTrainingEntry[];
+  responseStyle: AiTrainingEntry[];
+};
+
+const EMPTY_CHAT_TRAINING: TrainingDataForChat = {
+  featureKnowledge: [],
+  userKnowledge: [],
+  responseStyle: [],
+};
+
+function formatTrainingSections(td: TrainingDataForChat | AiTrainingEntry[]): string {
+  let data: TrainingDataForChat;
+  if (Array.isArray(td)) {
+    const grouped = groupEntriesByDomain(td);
+    data = {
+      featureKnowledge: grouped.feature_knowledge,
+      userKnowledge: grouped.user_knowledge,
+      responseStyle: grouped.response_style,
+    };
+  } else if (td && typeof td === "object") {
+    data = td;
+  } else {
+    data = EMPTY_CHAT_TRAINING;
+  }
+
+  const sections: string[] = [];
+  if (data.featureKnowledge && data.featureKnowledge.length > 0) {
+    sections.push(`## Konteks Fitur & Produk (Feature Knowledge)\n\nKonteks produk, fitur, module, dan aturan bisnis yang didokumentasikan oleh admin. Pakai ini sebagai acuan utama:\n\n${data.featureKnowledge.map((e) => `### [${e.category}] ${e.title}\n${e.content}`).join("\n\n")}`);
+  }
+  if (data.userKnowledge && data.userKnowledge.length > 0) {
+    sections.push(`## Konteks User & Persona (User Knowledge)\n\nData persona, behavior, research finding, dan pain point user yang didokumentasikan oleh admin:\n\n${data.userKnowledge.map((e) => `### [${e.category}] ${e.title}\n${e.content}`).join("\n\n")}`);
+  }
+  if (data.responseStyle && data.responseStyle.length > 0) {
+    sections.push(`## Panduan Gaya Jawaban (Response Style)\n\nInstruksi berikut mengubah cara kamu berkomunikasi. **Prioritaskan instruksi ini di atas aturan default** di section "Cara Kamu Berkomunikasi":\n\n${data.responseStyle.map((e) => `### [${e.category}] ${e.title}\n${e.content}`).join("\n\n")}`);
+  }
+  return sections.join("\n\n");
+}
+
 export function buildSystemInstruction(
   features: Feature[],
   types: TypesState | undefined,
-  trainingEntries: AiTrainingEntry[] = [],
+  trainingData: TrainingDataForChat | AiTrainingEntry[] = EMPTY_CHAT_TRAINING,
   mode: AgentMode
 ): string {
   const modeGuide = MODE_SYSTEM_PROMPTS[mode];
@@ -256,13 +296,7 @@ ${
 - **Action Needed:** Need Design, Need Figma Link, Need Design Review, Need Redesign, No Action`
 }
 
-${
-  trainingEntries.length > 0
-    ? `## Pengetahuan Tambahan Tim (Knowledge Base)\n\nKonteks dan konvensi tim yang sudah didokumentasikan oleh admin. Pakai ini sebagai acuan utama:\n\n${trainingEntries
-        .map((e) => `### [${e.category}] ${e.title}\n${e.content}`)
-        .join("\n\n")}`
-    : ""
-}
+${formatTrainingSections(trainingData)}
 
 ---
 
@@ -327,13 +361,7 @@ ${OUT_OF_SCOPE_POLICY}
 - Kalau user mau draft fitur pertama — bantu drafting deskripsi atau template.
 - Kalau user tanya tentang dashboard secara umum — jelaskan bahwa ini **${DASHBOARD_NAME}** untuk tim **${DASHBOARD_OWNER_TEAM}**, fungsinya ${DASHBOARD_PURPOSE}
 
-${
-  trainingEntries.length > 0
-    ? `## Pengetahuan Tambahan Tim (Knowledge Base)\n\nKonteks dan konvensi tim yang sudah didokumentasikan oleh admin. Pakai ini sebagai acuan utama:\n\n${trainingEntries
-        .map((e) => `### [${e.category}] ${e.title}\n${e.content}`)
-        .join("\n\n")}`
-    : ""
-}
+${formatTrainingSections(trainingData)}
 
 ---
 
@@ -510,7 +538,7 @@ export async function* streamGemini(
   userMessage: string,
   features: Feature[],
   types: TypesState | undefined,
-  trainingEntries: AiTrainingEntry[] = [],
+  trainingData: TrainingDataForChat | AiTrainingEntry[] = EMPTY_CHAT_TRAINING,
   mode: AgentMode = "qa",
   chatHistory: ChatMessage[] = [],
   aiModel: AiModel = DEFAULT_AI_MODEL,
@@ -522,7 +550,7 @@ export async function* streamGemini(
     return;
   }
 
-  const systemInstruction = buildSystemInstruction(features, types, trainingEntries, mode);
+  const systemInstruction = buildSystemInstruction(features, types, trainingData, mode);
   const imageEvidence = shouldSendImageEvidence(userMessage, mode)
     ? collectImageEvidence(features)
     : [];
@@ -599,13 +627,13 @@ export async function askGemini(
   userMessage: string,
   features: Feature[],
   types: TypesState | undefined,
-  trainingEntries: AiTrainingEntry[] = [],
+  trainingData: TrainingDataForChat | AiTrainingEntry[] = EMPTY_CHAT_TRAINING,
   mode: AgentMode = "qa",
   chatHistory: ChatMessage[] = [],
   aiModel: AiModel = DEFAULT_AI_MODEL
 ): Promise<string> {
   let full = "";
-  for await (const chunk of streamGemini(userMessage, features, types, trainingEntries, mode, chatHistory, aiModel)) {
+  for await (const chunk of streamGemini(userMessage, features, types, trainingData, mode, chatHistory, aiModel)) {
     full += chunk;
   }
   return full;
@@ -613,22 +641,22 @@ export async function askGemini(
 
 // ─── Quick Actions ────────────────────────────────────────────────────────────
 
-export async function generateStatusReport(features: Feature[], types?: TypesState, trainingEntries: AiTrainingEntry[] = []): Promise<string> {
+export async function generateStatusReport(features: Feature[], types?: TypesState, trainingData: TrainingDataForChat | AiTrainingEntry[] = EMPTY_CHAT_TRAINING): Promise<string> {
   return askGemini(
     "Buatkan laporan status lengkap dari semua fitur yang ada saat ini dalam format markdown.",
     features,
     types,
-    trainingEntries,
+    trainingData,
     "report"
   );
 }
 
-export async function summarizeDashboard(features: Feature[], types?: TypesState, trainingEntries: AiTrainingEntry[] = []): Promise<string> {
+export async function summarizeDashboard(features: Feature[], types?: TypesState, trainingData: TrainingDataForChat | AiTrainingEntry[] = EMPTY_CHAT_TRAINING): Promise<string> {
   return askGemini(
     "Berikan ringkasan eksekutif dari kondisi tracker fitur produk kami saat ini.",
     features,
     types,
-    trainingEntries,
+    trainingData,
     "summarize"
   );
 }

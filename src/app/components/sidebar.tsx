@@ -7,10 +7,13 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
-  Brain,
+  Boxes,
+  UserSearch,
+  MessageSquareText,
+  FileStack,
 } from "lucide-react";
 
-type NavKey = "dashboard" | "customize" | "settings" | "ai-training";
+type NavKey = "dashboard" | "customize" | "settings" | "ai-feature-knowledge" | "ai-user-knowledge" | "ai-response-style" | "ai-document-template";
 
 const SECTIONS: {
   title: string;
@@ -30,9 +33,12 @@ const SECTIONS: {
     ],
   },
   {
-    title: "AI",
+    title: "AI TRAINING",
     items: [
-      { key: "ai-training", label: "AI Training", icon: Brain },
+      { key: "ai-feature-knowledge", label: "Feature Knowledge", icon: Boxes },
+      { key: "ai-user-knowledge", label: "User Knowledge", icon: UserSearch },
+      { key: "ai-response-style", label: "Response Style", icon: MessageSquareText },
+      { key: "ai-document-template", label: "Doc Template", icon: FileStack },
     ],
   },
 ];
@@ -237,7 +243,7 @@ export function MobileNav({
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[#d5e2e3] bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">
-      <div className="grid grid-cols-4 gap-1">
+      <div className="flex gap-1 overflow-x-auto">
         {items.map((item) => {
           const Icon = item.icon;
           const isActive = item.key === active;
@@ -246,14 +252,20 @@ export function MobileNav({
               key={item.key}
               type="button"
               onClick={() => onChange(item.key)}
-              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1.5 py-2 transition-colors ${
+              className={`flex min-w-0 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-2.5 py-2 transition-colors ${
                 isActive ? "bg-[#e6f1f2] text-[#027479]" : "text-[#667085] hover:bg-[#f5f5f5]"
               }`}
               aria-current={isActive ? "page" : undefined}
             >
               <Icon size={18} strokeWidth={isActive ? 2 : 1.6} />
               <span className="max-w-full truncate text-[11px] font-semibold leading-4">
-                {item.label.replace("Customize Types", "Types").replace("AI Training", "Training")}
+                {item.label
+                  .replace("Customize Types", "Types")
+                  .replace("Feature Knowledge", "Features")
+                  .replace("User Knowledge", "Users")
+                  .replace("Response Style", "Response")
+                  .replace("Doc Template", "Template")
+                }
               </span>
             </button>
           );

@@ -1,87 +1,344 @@
-# Ringkasan Pengembangan Terra Feature Tracker & Tepat AI 🚀
+# Ringkasan Sesi Pengembangan Terra Feature Tracker
 
-Dokumen ini merangkum seluruh pencapaian, pembaruan arsitektur, dan fitur baru yang telah diimplementasikan selama sesi pengembangan kali ini pada workspace **Terra Feature Tracker**.
+> Sesi ini mencakup security hardening menyeluruh, redesign UI, persistent chat history, dan banyak polish UX. Total: **15 commits** ke `main`, **182 unit/integration/property tests** semua hijau.
 
 ---
 
 ## 📋 Daftar Isi
-1. [Manajemen Akun & Autentikasi Firebase](#1-manajemen-akun--autentikasi-firebase)
-2. [Peningkatan Engine Tepat AI (Gemini 3.1)](#2-peningkatan-engine-tepat-ai-gemini-31)
-3. [Sistem Latihan AI (AI Training & Knowledge Base)](#3-sistem-latihan-ai-ai-training--knowledge-base)
-4. [Apresiasi Estetika & Penyempurnaan Chat Panel](#4-apresiasi-estetika--penyempurnaan-chat-panel)
-5. [Optimalisasi State & Sinkronisasi Firestore](#5-optimalisasi-state--sinkronisasi-firestore)
+
+1. [Code Audit Awal](#1-code-audit-awal)
+2. [Spec: Auth Security Hardening](#2-spec-auth-security-hardening)
+3. [Eksekusi 31 Tasks](#3-eksekusi-31-tasks)
+4. [Deployment ke Vercel](#4-deployment-ke-vercel)
+5. [Polish UI & UX](#5-polish-ui--ux)
+6. [Persistent Chat History](#6-persistent-chat-history)
+7. [Toast System Upgrade](#7-toast-system-upgrade)
+8. [Bug Fixes](#8-bug-fixes)
 
 ---
 
-## 1. Manajemen Akun & Autentikasi Firebase
+## 1. Code Audit Awal
 
-Sebelumnya, manajemen user hanya bersifat lokal dan tidak terhubung ke Firebase Auth. Kami berhasil merombak total modul ini dengan solusi yang aman dan andal:
+User minta saya audit kode dari `chat-summary.md` lama. Saya baca file inti dan temukan **3 critical security issues**:
 
-*   **Pendaftaran & Penghapusan Otomatis (Firebase Auth Sync):** 
-    Menggunakan teknik **Secondary Firebase App Instance** di dalam `SettingsPage`. Admin dapat membuat akun baru atau menghapus akun tanpa memicu *force log-out* pada sesi aktif Admin itu sendiri. Akun otomatis terdaftar di Firebase Authentication dan tersimpan di koleksi Firestore `users`.
-*   **Plain-Text Password Toggle (View/Edit):**
-    Menambahkan kolom password terenkripsi/plaintext dalam tabel administratif internal dengan ikon *Mata (Eye)* untuk melihat password secara aman. Mendukung alur kerja Edit yang menyinkronkan perubahan ke Firebase Auth melalui autentikasi sekunder di belakang layar.
-*   **Auto-Seed Profile:**
-    Jika admin baru saja membuat akun dari Firebase Console langsung (misal: `adminmacan@terra.com`), sistem sekarang secara otomatis mendeteksi login pertamanya dan membuatkan profil default di Firestore agar langsung tercantum di tabel manajemen.
+### 🔴 Bug 1: Plaintext password di Firestore
+- Field `password` disimpan plain di `workspaces/default/users/{uid}`
+- Auto-seed di `App.tsx` hardcode `password: "admin1234"`
+- Ditampilkan di tabel admin dengan toggle Eye
 
----
+### 🔴 Bug 2: Secondary auth flow rapuh
+- `handleEdit` & `confirmDelete` re-auth pakai password Firestore
+- Jika password mismatch Auth → edit gagal total
+- Delete hanya `console.warn` saat fail → orphan Auth user
 
-## 2. Peningkatan Engine Tepat AI (Gemini 3.1)
-
-Kami meningkatkan kecerdasan buatan (Tepat AI) ke level tertinggi yang tersedia saat ini:
-
-*   **Upgrade ke `gemini-3.1-flash-lite`:**
-    Menggantikan versi model terdahulu untuk memperoleh kecepatan pemrosesan super instan, biaya operasional token yang jauh lebih murah (efisien untuk free-tier), serta pematuhan instruksi (*System Instruction compliance*) yang jauh lebih ketat.
-*   **Penyelesaian Context Blindness:**
-    AI sekarang menyadari penuh identitas dashboard, tim kerja (`Product & Design Team`), dan tujuan pelacakan tracker meskipun data dalam kondisi kosong (*Empty State*).
+### 🔴 Bug 3: Gemini API key di bundle client
+- `VITE_GEMINI_API_KEY` ter-inline di JS publik
+- Siapa pun yang inspect bundle bisa scrape key → quota theft
 
 ---
 
-## 3. Sistem Latihan AI (AI Training & Knowledge Base) 🧠
+## 2. Spec: Auth Security Hardening
 
-Ini adalah lompatan besar dalam personalisasi AI Agent Anda. Kami meluncurkan modul **AI Training (Knowledge Base)** yang memungkinkan admin melatih kecerdasan Tepat AI secara langsung dari UI:
+Dibuat spec lengkap di `.kiro/specs/auth-security-hardening/`:
 
-*   **Halaman AI Training (`AiTrainingPage`):**
-    Menu navigasi baru di Sidebar yang memungkinkan admin menambah, mengedit, atau menghapus materi pelatihan AI.
-*   **Kategori Pembelajaran Terstruktur:**
-    Mendukung 5 kategori penting untuk melatih pemahaman kontekstual AI:
-    1.  `product_context`: Konteks produk, tujuan utama, dan latar belakang platform.
-    2.  `design_process`: Alur kerja desain, metodologi, dan standar tim.
-    3.  `team_convention`: Aturan penamaan, standarisasi tim, dan istilah internal.
-    4.  `domain_knowledge`: Informasi industri dan pengetahuan bisnis khusus.
-    5.  `qa_example`: Contoh tanya-jawab (Q&A) yang memandu gaya respon AI agar akurat.
-*   **Grounding Prompt Injection:**
-    Seluruh materi latihan yang tersimpan di Firestore koleksi `ai-training` akan disaring secara real-time dan **disuntikkan langsung** ke dalam *System Instruction* Gemini sebelum API dipanggil. Hal ini menjamin respon AI selalu selaras dengan aturan internal Terra.
+- **bugfix.md** — 12 current behavior clauses, 15 expected behavior clauses, 11 regression prevention clauses
+- **design.md** — Mermaid diagrams, 4 sequence diagrams, 18 file changes, 7 correctness properties (P1-P7)
+- **tasks.md** — 31 tasks dalam 4 phase rollout
 
----
+### Keputusan Arsitektur
 
-## 4. Apresiasi Estetika & Penyempurnaan Chat Panel
-
-Kami merombak total tampilan visual dan fungsionalitas asisten AI agar terasa premium, responsif, dan kaya fitur:
-
-*   **Aura Premium & Micro-Animations:** Tepat AI panel kini memiliki transisi yang sangat halus, indikator pemuatan data real-time (*"... fitur dimuat"*), dan penyesuaian tinggi kolom input chat secara otomatis sesuai panjang baris (*auto-resize textarea*).
-*   **Advanced Inline Markdown Parser:**
-    Menulis custom parser handal di `ai-agent-panel.tsx` untuk menerjemahkan markdown kompleks menjadi komponen React interaktif secara real-time:
-    *   **Tabel Markdown:** Ditampilkan dengan desain border melengkung (*rounded*), zebra striping, dan penataan kolom yang premium.
-    *   **Daftar Terstruktur:** Membedakan bullet list berbentuk dot teal dengan list bernomor secara rapi.
-    *   **Format Khusus:** Mendukung bolding, italic, inline code blocks (`code`), dan multiline code snippet (` ``` `) dengan background soft gray yang memanjakan mata.
+| Area | Keputusan |
+|---|---|
+| Backend | Vercel Serverless Functions (`firebase-admin` butuh Node runtime) |
+| Atomicity delete | Auth-first → Firestore-second (failure mode lebih aman) |
+| Streaming format | SSE (`text/event-stream`) — punya boundary delimiter |
+| System instruction | Build di client, kirim sebagai field (refactor minimal) |
+| `secondaryAuth` | Hapus seluruhnya |
+| `UserAccount` type | Breaking change — hapus field `password` |
 
 ---
 
-## 5. Optimalisasi State & Sinkronisasi Firestore
+## 3. Eksekusi 31 Tasks
 
-Untuk menghindari konflik penyimpanan data (*race conditions*) saat admin memperbarui pengaturan Custom Types, Squads, atau Modules dengan cepat secara berurutan, kami mengoptimalkan kode backend di `App.tsx`:
+Sukses dieksekusi semua dalam 4-phase rollout:
 
-*   **React useRef Tracker:** Menjaga state `types`, `squadOwners`, dan `moduleSquads` selalu ter-update di memory pointer terbaru guna mencegah closure usang (*stale closures*).
-*   **Debounced Persist Config:**
-    Mengimplementasikan fungsi delay debounce `persistConfig()`. Jika admin melakukan banyak pembaruan data dalam waktu singkat (di bawah 100ms), aplikasi hanya akan mengirimkan **satu request tunggal** ke Firestore, menghemat kuota baca-tulis database secara signifikan dan menghindari tabrakan state.
+### Phase 0 — Pre-flight (10 tasks)
+- Setup Vitest + fast-check + Firebase emulator + Testing Library
+- Server deps + `vercel.json`
+- `.env.example` + `.gitignore` updates
+- Tulis 7 property tests pada UNFIXED code:
+  - **P1, P2, P4, P6, P7** (Bug Conditions) → harus FAIL ✅
+  - **P3, P5** (Preservation) → harus PASS ✅
+
+### Phase 1 — Server endpoints (7 tasks)
+File baru:
+- `api/_lib/admin.ts` — Firebase Admin SDK singleton (lazy init)
+- `api/_lib/auth-middleware.ts` — `requireAuth` ID token verifier
+- `api/admin/create-user.ts` — POST + verifyToken + Auth.createUser + Firestore (no password)
+- `api/admin/update-user.ts` — Conditional Auth update (skip jika hanya name)
+- `api/admin/delete-user.ts` — Auth-first ordering, `PARTIAL_DELETE_AUTH_GONE` code
+- `api/gemini/stream.ts` — SSE proxy dengan `gemini-3.1-flash-lite`
+
+### Phase 2 — Client refactor (5 tasks)
+- `src/app/services/admin-api.ts` — `authedFetch` + `jsonOrThrow` dengan error tagging
+- `src/app/services/gemini.ts` refactor jadi SSE fetch wrapper
+- `src/app/data/firebase.ts` — `secondaryAuth` dihapus
+- `src/app/components/settings-page.tsx` refactor — kolom Password dihapus
+- Phase 2 checkpoint: 6 of 7 properties PASS
+
+### Phase 3 — Strip legacy + rules (6 tasks)
+- `src/app/data/firestore-db.ts` — `UserAccount` type tanpa `password`, `toUserAccount()` helper
+- `src/app/App.tsx` auto-seed — hapus hardcode `"admin1234"`
+- `scripts/strip-password-field.mjs` — one-shot migration
+- `firestore.rules` — block writes containing `password` field
+- ⚠️ Migration script run di production (manual, butuh service account)
+
+### Phase 4 — Cleanup (3 tasks)
+- Hapus `VITE_GEMINI_API_KEY` dari semua surface
+- Final bundle audit dengan sentinel value
+- Final checkpoint: **all P1-P7 PASS** ✅
 
 ---
 
-### 💻 Struktur File yang Diperbarui:
-*   [firestore-db.ts](file:///Users/luthfierlambang/Documents/Feature%20Tracker/src/app/data/firestore-db.ts) — Integrasi data model training base, auto-seeder, repair/merge default config, dan types user.
-*   [App.tsx](file:///Users/luthfierlambang/Documents/Feature%20Tracker/src/app/App.tsx) — Debounced persistence, routing menu `ai-training`, optimalisasi state, dan auto-sync user.
-*   [gemini.ts](file:///Users/luthfierlambang/Documents/Feature%20Tracker/src/app/services/gemini.ts) — Upgrade ke model `gemini-3.1-flash-lite` dan integrasi dynamic knowledge base.
-*   [ai-agent-panel.tsx](file:///Users/luthfierlambang/Documents/Feature%20Tracker/src/app/components/ai-agent-panel.tsx) — Redesain total UI chat, auto-resize textarea, custom markdown renderer (tabel, list, code blocks).
-*   [sidebar.tsx](file:///Users/luthfierlambang/Documents/Feature%20Tracker/src/app/components/sidebar.tsx) — Penambahan section menu **AI Training**.
-*   [settings-page.tsx](file:///Users/luthfierlambang/Documents/Feature%20Tracker/src/app/components/settings-page.tsx) — Manajemen user Firebase Auth + Firestore lengkap dengan view password.
+## 4. Deployment ke Vercel
+
+### Setup environment variables
+| Variable | Scope |
+|---|---|
+| `VITE_FIREBASE_*` (6 vars) | Client (safe to bundle) |
+| `FIREBASE_ADMIN_PROJECT_ID` | Server-only |
+| `FIREBASE_ADMIN_CLIENT_EMAIL` | Server-only |
+| `FIREBASE_ADMIN_PRIVATE_KEY` | Server-only |
+| `GEMINI_API_KEY` | Server-only (replaces `VITE_GEMINI_API_KEY`) |
+
+### Issues yang ditemui & di-fix saat deploy
+
+| Error | Fix |
+|---|---|
+| `Function Runtimes must have a valid version` | Hapus `runtime: nodejs20.x` dari `vercel.json` (Vercel auto-detect) |
+| `Function must contain at least one property` | Simplify ke `{}` empty config |
+| `Relative import paths need explicit file extensions` | Tambah `.js` extension di semua import api/_lib |
+| `Failed to parse private key: error:1E08010C` | Strip surrounding quotes dari env var (handle Vercel formatting) |
+| `[GoogleGenerativeAI] API key expired` | Generate Gemini key baru di AI Studio |
+
+### Firestore Rules deployment
+- Login Firebase CLI sukses
+- `firebase deploy --only firestore:rules` ✅
+- Koleksi `chat-sessions` allowed write untuk authenticated users
+
+---
+
+## 5. Polish UI & UX
+
+### AI Personality (`gemini.ts`)
+- Hapus aturan robotic ("DILARANG", "WAJIB DIIKUTI", caps lock)
+- Ganti dengan tone "ngobrol seperti rekan kerja"
+- Mode prompts ditulis ulang dengan natural framing
+- Saat tidak tahu: "Belum ada datanya nih" bukan "Maaf, informasi tidak tersedia"
+
+### RTE Component baru (`rich-text-editor.tsx`)
+Menggantikan ReactQuill di feature form description:
+- Floating toolbar terpisah (B / I / U / color picker / align L/C / bullet list)
+- Content card terpisah dengan native CSS resize handle
+- Color picker popover dengan 7 brand colors
+- contentEditable + execCommand (lightweight)
+
+### Chat Composer redesign (`ai-agent-panel.tsx`)
+Mengikuti referensi gambar:
+- Single rounded-2xl card di canvas abu-abu lembut
+- Mode selector pill terintegrasi di kanan textarea (bukan bar terpisah)
+- Footer: Send button text+arrow di kanan
+- Auto-resize textarea dengan height alignment yang benar
+
+### Animasi (`src/index.css`)
+- Keyframes: slideUp, slideInLeft, pop, softPulse, counterIn, shimmer, blink, auroraFloat
+- Utility classes: `animate-pop`, `animate-slide-up`, `hover-lift`, `press-down`, `animate-soft-pulse`
+- Honor `prefers-reduced-motion`
+- Apply ke: summary cards (pop + counter), sidebar (slide-in-left stagger), feature table rows (slide-up stagger), AI training cards, Tepat AI button pulse dot
+
+### Tepat AI button — softer active state
+- Active: `bg-#f0fafb` + border teal + text teal (bukan primary solid)
+- Hover: glow ring teal halus
+
+### Panel visible across all sections
+- Hapus `activeNav === "dashboard"` guard
+- Panel render di Dashboard, Customize, Settings, AI Training
+
+### Resizable panel (`ResizableAiPanel`)
+- Drag handle di kiri panel (320-720px)
+- Width persist di localStorage
+- Visual indicator teal saat hover
+
+---
+
+## 6. Persistent Chat History
+
+### Firestore Schema
+Koleksi baru `workspaces/default/chat-sessions/{id}`:
+```typescript
+type ChatSession = {
+  id: string;
+  userId: string;
+  title: string;        // auto-derived dari first user message
+  createdAt: string;
+  updatedAt: string;
+  messages: StoredChatMessage[];
+};
+```
+
+### Features
+- Real-time sync via `onSnapshot`
+- Filter by `userId` client-side (per-user history)
+- Auto-derive title (truncate 50 char dari first user message)
+- Debounced persist (800ms) untuk hindari excessive writes
+
+### UI History Drawer
+- Button **History** (clock icon) di header
+- Sessions dikelompokkan: Today / Yesterday / This week / Earlier
+- Click session untuk load
+- Trash icon untuk delete dengan konfirmasi
+- Button **+** untuk new session
+
+---
+
+## 7. Toast System Upgrade
+
+### Types baru
+| Type | Icon | Use case |
+|---|---|---|
+| `success` | Check teal | Operasi sukses |
+| `error` | X red | Operasi gagal |
+| `warning` | Triangle amber | Soft warning |
+| `loading` | Spinning teal | Async operation in-progress |
+
+### API
+```typescript
+// Basic
+toast.success(title, description?)
+toast.error(title, description?)
+toast.warning(title, description?)
+
+// Loading flow
+const id = toast.loading("Saving...")
+toast.resolve(id, "Saved!", "All changes synced.")
+toast.reject(id, "Failed", error.message)
+
+// Manual control
+toast.dismiss(id)
+toast.update(id, { title, description })
+```
+
+### Features
+- Progress bar auto-dismiss (4s default, loading persists)
+- Stack max 5 toasts
+- Slide-in from right, slide-out on dismiss
+- Honor `prefers-reduced-motion`
+
+### Coverage
+Semua interaction punya feedback:
+- Feature save/delete ✅
+- User create/update/delete ✅ (loading → resolve/reject)
+- AI Training save/delete ✅
+- Customize Types add/remove/rename ✅
+- Logout ✅
+- Migrate local data ✅
+- **Chat session delete** ✅
+- **Save session error** ✅
+
+---
+
+## 8. Bug Fixes
+
+### File uploader crash
+**Root cause:** Interval upload tidak di-cancel saat user klik trash. Setelah unmount, interval terus fire `setState`/`onChange` → crash.
+
+**Fix:**
+- `isMountedRef` untuk cek mounted sebelum setState
+- `activeIntervalRef` untuk cancel interval saat clear
+- `useEffect` cleanup cancel interval saat unmount
+
+### Animasi tidak muncul
+**Root cause:** `src/main.tsx` import `src/styles/index.css` yang tidak include `src/index.css` (tempat semua keyframes custom kita).
+
+**Fix:** Tambah `@import '../index.css'` di `src/styles/index.css`.
+
+### "Sparkles" infinite loading
+**Root cause:** Tombol reset chat dengan logic welcome message yang re-loop saat features berubah.
+
+**Fix:** Hapus tombol Sparkles, ganti dengan icon Plus yang clean. Welcome update logic di-guard dengan `prev.length === 1 && prev[0].id === "welcome"`.
+
+### Migrate batch reuse bug
+**Root cause:** `migrateFromLocalStorage` commit batch yang sama dua kali.
+
+**Fix:** Buat `batch2 = writeBatch(db)` terpisah untuk users migration.
+
+---
+
+## 📊 Stats Akhir
+
+| Metric | Count |
+|---|---|
+| Files created | 23 (api endpoints, services, tests, scripts, RTE, etc.) |
+| Files modified | 14 |
+| Tests | **182/182 passing** |
+| Property tests | 7 (all passing) |
+| Integration tests | AI Training E2E + delete-user + strip-password |
+| Commits ke main | 15 |
+
+## 🎯 Hasil Security
+
+| Bug | Status |
+|---|---|
+| Bug 1 — Plaintext password | ✅ Closed (type, write paths, UI, migration script, security rules) |
+| Bug 2 — Fragile re-auth | ✅ Closed (server-side admin API, no plaintext dependency) |
+| Bug 3 — Gemini key bundle leak | ✅ Closed (server-side proxy, key removed from client) |
+
+## 🚀 Production Status
+
+- ✅ Deployed di Vercel: `terra-feature-tracker`
+- ✅ Firebase rules deployed (`firestore.rules`)
+- ✅ Migration script siap dijalankan untuk legacy docs cleanup
+- ✅ All 4 environment groups configured (Firebase Web SDK + Admin SDK + Gemini)
+
+---
+
+## 📁 Struktur File Penting
+
+```
+api/
+  _lib/
+    admin.ts              ← Firebase Admin SDK singleton
+    auth-middleware.ts    ← requireAuth ID token verifier
+  admin/
+    create-user.ts        ← POST + Auth.createUser
+    update-user.ts        ← POST + conditional Auth update
+    delete-user.ts        ← Auth-first delete with PARTIAL_DELETE code
+  gemini/
+    stream.ts             ← SSE proxy
+
+src/app/
+  services/
+    admin-api.ts          ← Client helper (authedFetch + tagged errors)
+    gemini.ts             ← SSE fetch wrapper, builds system instruction
+  components/
+    rich-text-editor.tsx  ← Custom RTE (replaces ReactQuill)
+    ai-agent-panel.tsx    ← Chat panel with history sidebar
+    toast.tsx             ← Upgraded toast (4 types + loading flow)
+    file-uploader.tsx     ← Image uploader (with mount guard fix)
+  data/
+    firebase.ts           ← Primary auth only (no secondary)
+    firestore-db.ts       ← UserAccount, ChatSession types
+
+scripts/
+  strip-password-field.mjs ← One-shot migration
+
+tests/
+  properties/             ← 7 PBT tests (P1-P7)
+  integration/            ← E2E tests
+  api/                    ← Server endpoint tests
+  components/             ← Component tests
+
+firestore.rules           ← Security rules
+vercel.json               ← Functions config
+.env.example              ← Environment variables template
+```

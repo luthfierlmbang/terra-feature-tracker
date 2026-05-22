@@ -26,3 +26,4 @@ service-account.json
 # Logs
 *.log
 npm-debug.log*
+.vercel

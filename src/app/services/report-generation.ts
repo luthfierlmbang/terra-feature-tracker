@@ -3,8 +3,12 @@ import type { Feature } from "../data/features";
 import type { TypesState } from "../components/customize-types";
 import { createReportPdf } from "./pdf-report";
 import { uploadReportArtifact } from "./report-artifacts";
-import { streamGemini, type AiModel, type ChatMessage } from "./gemini";
+import { streamGemini, type AiModel, type ChatMessage, type TrainingDataForChat } from "./gemini";
 import type { ReportAttachmentMetadata } from "./report-types";
+
+export type TrainingDataForReport = TrainingDataForChat & {
+  documentTemplate: AiTrainingEntry[];
+};
 
 const REPORT_AI_TIMEOUT_MS = 45_000;
 
@@ -43,16 +47,24 @@ Format:
 
 Fokus: visual deck, bukan laporan naratif. Jangan menulis paragraf panjang. Gunakan observasi, interpretasi, dan action hanya sebagai bullet pendek. Prioritaskan evidence screenshot/userflow yang tersedia di data. Kalau data/evidence kurang, jadikan itu insight visual sebagai evidence gap.`;
 
+function buildReportPrompt(documentTemplates: AiTrainingEntry[]): string {
+  if (documentTemplates.length === 0) return VISUAL_DECK_REPORT_PROMPT;
+  const templateSection = documentTemplates
+    .map((e) => `### [${e.category}] ${e.title}\n${e.content}`)
+    .join("\n\n");
+  return `${VISUAL_DECK_REPORT_PROMPT}\n\n## Instruksi Template dari Tim\n\nBerikut standar dan template yang HARUS diikuti saat membuat deck. Prioritaskan instruksi ini di atas format default:\n\n${templateSection}`;
+}
+
 async function collectReportAiOutput({
   features,
   types,
-  trainingEntries,
+  trainingData,
   chatHistory,
   aiModel,
 }: {
   features: Feature[];
   types: TypesState | undefined;
-  trainingEntries: AiTrainingEntry[];
+  trainingData: TrainingDataForReport;
   chatHistory: ChatMessage[];
   aiModel: AiModel;
 }) {
@@ -65,10 +77,14 @@ async function collectReportAiOutput({
 
   try {
     const stream = streamGemini(
-      VISUAL_DECK_REPORT_PROMPT,
+      buildReportPrompt(trainingData.documentTemplate),
       features,
       types,
-      trainingEntries,
+      {
+        featureKnowledge: trainingData.featureKnowledge,
+        userKnowledge: trainingData.userKnowledge,
+        responseStyle: trainingData.responseStyle,
+      },
       "report",
       chatHistory,
       aiModel,
@@ -96,7 +112,7 @@ async function collectReportAiOutput({
 export async function generateVisualDeckReport({
   features,
   types,
-  trainingEntries,
+  trainingData,
   chatHistory,
   aiModel,
   fileName,
@@ -106,7 +122,7 @@ export async function generateVisualDeckReport({
 }: {
   features: Feature[];
   types: TypesState | undefined;
-  trainingEntries: AiTrainingEntry[];
+  trainingData: TrainingDataForReport;
   chatHistory: ChatMessage[];
   aiModel: AiModel;
   fileName: string;
@@ -117,7 +133,7 @@ export async function generateVisualDeckReport({
   const aiOutput = await collectReportAiOutput({
     features,
     types,
-    trainingEntries,
+    trainingData,
     chatHistory,
     aiModel
   });

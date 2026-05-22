@@ -199,7 +199,7 @@ describe("AI Training — end-to-end integration", () => {
     const prompt = buildSystemInstruction([], undefined, entries, "qa");
 
     // The Knowledge Base section header must be present
-    expect(prompt).toContain("Pengetahuan Tambahan Tim (Knowledge Base)");
+    expect(prompt).toContain("## Konteks Fitur & Produk (Feature Knowledge)");
     // Each entry's title and content must be in the prompt
     expect(prompt).toContain("Tujuan produk");
     expect(prompt).toContain("Produk ini adalah feature tracker untuk PM dan designer.");
@@ -212,7 +212,7 @@ describe("AI Training — end-to-end integration", () => {
 
   it("buildSystemInstruction omits the Knowledge Base section when no entries", () => {
     const prompt = buildSystemInstruction([], undefined, [], "qa");
-    expect(prompt).not.toContain("Pengetahuan Tambahan Tim (Knowledge Base)");
+    expect(prompt).not.toContain("## Konteks Fitur & Produk (Feature Knowledge)");
   });
 
   it("buildSystemInstruction injects entries on BOTH branches (with features and empty state)", () => {
