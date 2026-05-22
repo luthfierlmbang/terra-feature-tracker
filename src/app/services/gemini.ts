@@ -89,8 +89,15 @@ export function isAiModel(value: unknown): value is AiModel {
   return value === DEFAULT_AI_MODEL;
 }
 
+export type CurrentViewContext = {
+  activeNav: string;
+  activeForm?: { mode: "add" | "edit"; feature?: { id: string; name: string; squad?: string; module?: string; description?: string } } | null;
+  viewingFeature?: { id: string; name: string; squad?: string; module?: string; description?: string } | null;
+};
+
 type StreamGeminiOptions = {
   signal?: AbortSignal;
+  currentViewContext?: CurrentViewContext;
 };
 
 const MAX_IMAGE_EVIDENCE = 5;
@@ -163,11 +170,67 @@ function formatTrainingSections(td: TrainingDataForChat | AiTrainingEntry[]): st
   return sections.join("\n\n");
 }
 
+function formatCurrentViewContext(ctx?: CurrentViewContext): string {
+  if (!ctx) return "";
+
+  const lines: string[] = [];
+  lines.push("## Konteks Halaman/Tampilan Saat Ini");
+  lines.push("User sedang berada/melihat halaman berikut di aplikasi:");
+
+  if (ctx.viewingFeature) {
+    lines.push(`- **Detail Fitur**: sedang melihat detail fitur bernama **"${ctx.viewingFeature.name}"** (ID: ${ctx.viewingFeature.id}).`);
+    if (ctx.viewingFeature.squad) lines.push(`  - Squad: ${ctx.viewingFeature.squad}`);
+    if (ctx.viewingFeature.module) lines.push(`  - Modul: ${ctx.viewingFeature.module}`);
+    if (ctx.viewingFeature.description) {
+      const cleanDesc = stripHtml(ctx.viewingFeature.description).slice(0, 500);
+      lines.push(`  - Deskripsi: ${cleanDesc}`);
+    }
+  } else if (ctx.activeForm) {
+    if (ctx.activeForm.mode === "add") {
+      lines.push("- **Form Tambah Fitur**: sedang membuka formulir untuk membuat/menambahkan fitur baru.");
+    } else {
+      lines.push(`- **Form Edit Fitur**: sedang membuka formulir edit untuk fitur **"${ctx.activeForm.feature?.name}"** (ID: ${ctx.activeForm.feature?.id}).`);
+      if (ctx.activeForm.feature?.squad) lines.push(`  - Squad: ${ctx.activeForm.feature.squad}`);
+      if (ctx.activeForm.feature?.module) lines.push(`  - Modul: ${ctx.activeForm.feature.module}`);
+    }
+  } else {
+    switch (ctx.activeNav) {
+      case "dashboard":
+        lines.push("- **Dashboard Utama**: sedang melihat daftar seluruh fitur di Feature Tracker.");
+        break;
+      case "customize":
+        lines.push("- **Halaman Customize Types**: sedang melihat/mengatur konfigurasi Squad, Module, Status Desain, Status Fitur, dan PIC/Owner.");
+        break;
+      case "settings":
+        lines.push("- **Halaman Settings**: sedang melihat pengaturan aplikasi, konfigurasi Firebase, dan status server.");
+        break;
+      case "ai-feature-knowledge":
+        lines.push("- **Halaman AI Training - Feature Knowledge**: sedang melihat/mengelola data latih pengetahuan produk & fitur.");
+        break;
+      case "ai-user-knowledge":
+        lines.push("- **Halaman AI Training - User Knowledge**: sedang melihat/mengelola data latih persona & perilaku user.");
+        break;
+      case "ai-response-style":
+        lines.push("- **Halaman AI Training - Response Style**: sedang melihat/mengelola data latih gaya bahasa & format jawaban.");
+        break;
+      case "ai-document-template":
+        lines.push("- **Halaman AI Training - Document Template**: sedang melihat/mengelola data latih template laporan/slide.");
+        break;
+      default:
+        lines.push(`- **Halaman ${ctx.activeNav}**`);
+    }
+  }
+
+  lines.push("\n**PENTING**: Gunakan informasi di atas sebagai acuan utama konteks pertanyaan user. Jika user merujuk ke 'fitur ini', 'halaman ini', atau bertanya tentang apa yang sedang ia lihat, jawab berdasarkan halaman/fitur di atas.");
+  return lines.join("\n");
+}
+
 export function buildSystemInstruction(
   features: Feature[],
   types: TypesState | undefined,
   trainingData: TrainingDataForChat | AiTrainingEntry[] = EMPTY_CHAT_TRAINING,
-  mode: AgentMode
+  mode: AgentMode,
+  currentViewContext?: CurrentViewContext
 ): string {
   const modeGuide = MODE_SYSTEM_PROMPTS[mode];
 
@@ -231,12 +294,16 @@ export function buildSystemInstruction(
       ).length,
     };
 
+    const contextSection = currentViewContext ? `\n---\n\n${formatCurrentViewContext(currentViewContext)}\n` : "";
+
     return `
 # Tentang Kamu
 
 Kamu adalah **Tepat AI** — asisten internal di **${DASHBOARD_NAME}**, dashboard yang dipakai tim **${DASHBOARD_OWNER_TEAM}** untuk ${DASHBOARD_PURPOSE}
 
 Kamu bukan customer service bot. Anggap dirimu rekan kerja yang familiar dengan semua data tracker. Gunakan **cara berpikir UX senior** untuk membantu tim memahami kualitas fitur dari sisi UX, bisnis, proses operasional, dan risiko release, tetapi jangan berulang kali menyebut bahwa kamu praktisi/UX designer.
+
+${contextSection ? contextSection + "\n---\n" : ""}
 
 ---
 
@@ -343,12 +410,16 @@ Gunakan start/end untuk titik awal/akhir, process untuk aksi proses, decision un
   // ── BRANCH B: Empty State — data belum ada atau 0 fitur ─────────────────
   // REASONING: Tepat AI tetap helpful walaupun belum ada fitur — tone-nya
   // seperti onboarding partner yang membimbing user mengisi tracker pertamanya.
+  const contextSection = currentViewContext ? `\n---\n\n${formatCurrentViewContext(currentViewContext)}\n` : "";
+
   return `
 # Tentang Kamu
 
 Kamu adalah **Tepat AI** — asisten internal di **${DASHBOARD_NAME}**, dashboard yang dipakai tim **${DASHBOARD_OWNER_TEAM}** untuk ${DASHBOARD_PURPOSE}
 
 Saat ini tracker masih kosong. Kamu di sini buat membantu user mulai mengisi data, sambil menjawab pertanyaan tentang aplikasi dan domain product/design tracking.
+
+${contextSection ? contextSection + "\n---\n" : ""}
 
 ---
 
@@ -557,7 +628,7 @@ export async function* streamGemini(
     return;
   }
 
-  const systemInstruction = buildSystemInstruction(features, types, trainingData, mode);
+  const systemInstruction = buildSystemInstruction(features, types, trainingData, mode, options.currentViewContext);
   const imageEvidence = shouldSendImageEvidence(userMessage, mode)
     ? collectImageEvidence(features)
     : [];

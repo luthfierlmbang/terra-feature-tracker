@@ -16,6 +16,7 @@ import {
   type AgentMode,
   type AiModel,
   type ChatMessage,
+  type CurrentViewContext,
 } from "../../services/gemini";
 import type { Feature } from "../../data/features";
 import {
@@ -142,6 +143,7 @@ export function AiAgentPanel({
   aiModel,
   userId,
   onClose,
+  currentViewContext,
 }: {
   features: Feature[];
   types?: any;
@@ -149,6 +151,7 @@ export function AiAgentPanel({
   aiModel: AiModel;
   userId: string;
   onClose: () => void;
+  currentViewContext?: CurrentViewContext;
 }) {
   const [mode, setMode] = useState<AgentMode>("qa");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -363,7 +366,8 @@ export function AiAgentPanel({
         chatTrainingData,
         mode,
         messages.slice(-10),
-        aiModel
+        aiModel,
+        { currentViewContext }
       );
       let fullText = "";
 

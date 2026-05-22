@@ -44,7 +44,7 @@ import {
   type Feature,
   type ActionNeeded,
 } from "./data/features";
-import { DEFAULT_AI_MODEL } from "./services/gemini";
+import { DEFAULT_AI_MODEL, type CurrentViewContext } from "./services/gemini";
 
 const INITIAL_TYPES: TypesState = {
   featureStatus: FEATURE_STATUSES,
@@ -155,6 +155,26 @@ export default function App() {
   const [hasLocalData, setHasLocalData] = useState(false);
   const [aiTrainingEntries, setAiTrainingEntries] = useState<AiTrainingEntry[]>([]);
   const trainingByDomain = useMemo(() => groupEntriesByDomain(aiTrainingEntries), [aiTrainingEntries]);
+
+  const currentViewContext = useMemo<CurrentViewContext>(() => ({
+    activeNav,
+    activeForm: activeForm ? {
+      mode: activeForm.mode,
+      feature: activeForm.feature ? {
+        id: activeForm.feature.id,
+        name: activeForm.feature.name,
+        squad: activeForm.feature.squad,
+        module: activeForm.feature.module,
+      } : undefined
+    } : null,
+    viewingFeature: viewingFeature ? {
+      id: viewingFeature.id,
+      name: viewingFeature.name,
+      squad: viewingFeature.squad,
+      module: viewingFeature.module,
+      description: viewingFeature.description,
+    } : null,
+  }), [activeNav, activeForm, viewingFeature]);
 
   // Refs to always hold the latest config state — avoids stale closures in
   // sequential saveConfig calls (e.g. addItem calls onChange then onSquadOwnerChange)
@@ -565,6 +585,8 @@ export default function App() {
               signOut(auth);
             }}
             user={user}
+            showAiPanel={showAiPanel}
+            onToggleAi={() => setShowAiPanel((v) => !v)}
           />
         </div>
 
@@ -699,8 +721,8 @@ export default function App() {
           </div>
         </main>
 
-        {/* AI Agent Side Panel — visible across ALL sections, except when forms are open */}
-        {showAiPanel && !activeForm && !viewingFeature && (
+        {/* AI Agent Side Panel — visible across ALL sections */}
+        {showAiPanel && (
           <ResizableAiPanel>
             <AiAgentPanel
               features={activeFeatures}
@@ -709,6 +731,7 @@ export default function App() {
               aiModel={DEFAULT_AI_MODEL}
               userId={firebaseUser.uid}
               onClose={() => setShowAiPanel(false)}
+              currentViewContext={currentViewContext}
             />
           </ResizableAiPanel>
         )}
@@ -717,6 +740,8 @@ export default function App() {
       <MobileNav
         active={activeNav}
         onChange={(k) => { setActiveNav(k); setFilters(EMPTY_FILTERS); setActiveForm(null); setViewingFeature(null); }}
+        showAiPanel={showAiPanel}
+        onToggleAi={() => setShowAiPanel((v) => !v)}
       />
 
       {deleteTarget && (

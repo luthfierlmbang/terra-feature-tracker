@@ -11,6 +11,7 @@ import {
   UserSearch,
   MessageSquareText,
   FileStack,
+  Bot,
 } from "lucide-react";
 
 type NavKey = "dashboard" | "customize" | "settings" | "ai-feature-knowledge" | "ai-user-knowledge" | "ai-response-style" | "ai-document-template";
@@ -48,11 +49,15 @@ export function Sidebar({
   onChange,
   onLogout,
   user,
+  showAiPanel = false,
+  onToggleAi,
 }: {
   active: NavKey;
   onChange: (key: NavKey) => void;
   onLogout: () => void;
   user: { name: string; email: string; initials: string };
+  showAiPanel?: boolean;
+  onToggleAi?: () => void;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -142,6 +147,40 @@ export function Sidebar({
             </div>
           </div>
         ))}
+
+        {/* AI Assistant Section */}
+        {!isCollapsed && (
+          <div className="px-5 pb-1 mt-4">
+            <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 11, lineHeight: "18px", color: "#80babd", letterSpacing: "0.05em" }}>
+              AI ASSISTANT
+            </p>
+          </div>
+        )}
+        <div className="px-3 mb-2">
+          <button
+            onClick={onToggleAi}
+            className={`flex items-center rounded-md transition-all ${
+              isCollapsed ? "justify-center p-2.5 w-full" : "gap-3 px-3 py-2 w-full text-left"
+            } ${
+              showAiPanel 
+                ? "bg-[#035a5d] text-white" 
+                : "text-[#e6f1f2] hover:bg-[#024f52] hover:text-white"
+            }`}
+            title="Tepat AI Chat"
+          >
+            <span className="relative">
+              <Bot size={18} strokeWidth={showAiPanel ? 2 : 1.5} color={showAiPanel ? "#ffffff" : "#b0d5d7"} />
+              {!showAiPanel && (
+                <span className="absolute -right-1 -top-1 size-1.5 rounded-full bg-[#02878d]" />
+              )}
+            </span>
+            {!isCollapsed && (
+              <span style={{ fontFamily: "Inter, sans-serif", fontWeight: showAiPanel ? 600 : 500, fontSize: 14, lineHeight: "20px" }}>
+                Tepat AI Chat
+              </span>
+            )}
+          </button>
+        </div>
 
         {/* Support Section */}
         {!isCollapsed && (
@@ -235,9 +274,13 @@ export function Sidebar({
 export function MobileNav({
   active,
   onChange,
+  showAiPanel = false,
+  onToggleAi,
 }: {
   active: NavKey;
   onChange: (key: NavKey) => void;
+  showAiPanel?: boolean;
+  onToggleAi?: () => void;
 }) {
   const items = SECTIONS.flatMap((section) => section.items);
 
@@ -270,6 +313,19 @@ export function MobileNav({
             </button>
           );
         })}
+        {/* Tepat AI Toggle Tab */}
+        <button
+          type="button"
+          onClick={onToggleAi}
+          className={`flex min-w-0 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-2.5 py-2 transition-colors ${
+            showAiPanel ? "bg-[#e6f1f2] text-[#027479]" : "text-[#667085] hover:bg-[#f5f5f5]"
+          }`}
+        >
+          <Bot size={18} strokeWidth={showAiPanel ? 2 : 1.6} />
+          <span className="max-w-full truncate text-[11px] font-semibold leading-4">
+            Tepat AI
+          </span>
+        </button>
       </div>
     </nav>
   );
