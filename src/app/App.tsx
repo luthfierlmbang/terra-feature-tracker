@@ -590,6 +590,21 @@ export default function App() {
           />
         </div>
 
+        {/* AI Agent Side Panel — visible across ALL sections */}
+        {showAiPanel && (
+          <ResizableAiPanel>
+            <AiAgentPanel
+              features={activeFeatures}
+              types={types}
+              trainingEntries={aiTrainingEntries}
+              aiModel={DEFAULT_AI_MODEL}
+              userId={firebaseUser.uid}
+              onClose={() => setShowAiPanel(false)}
+              currentViewContext={currentViewContext}
+            />
+          </ResizableAiPanel>
+        )}
+
         <main
           className="flex h-full min-w-0 flex-1 flex-col overflow-hidden border border-transparent bg-white md:rounded-xl md:border-[#e5e5e5]"
           style={{ boxShadow: "0 1px 1px rgba(0,0,0,0.05)" }}
@@ -720,21 +735,6 @@ export default function App() {
             )}
           </div>
         </main>
-
-        {/* AI Agent Side Panel — visible across ALL sections */}
-        {showAiPanel && (
-          <ResizableAiPanel>
-            <AiAgentPanel
-              features={activeFeatures}
-              types={types}
-              trainingEntries={aiTrainingEntries}
-              aiModel={DEFAULT_AI_MODEL}
-              userId={firebaseUser.uid}
-              onClose={() => setShowAiPanel(false)}
-              currentViewContext={currentViewContext}
-            />
-          </ResizableAiPanel>
-        )}
       </div>
 
       <MobileNav
@@ -788,7 +788,7 @@ function ResizableAiPanel({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     function onMouseMove(e: MouseEvent) {
       if (!draggingRef.current) return;
-      const delta = startXRef.current - e.clientX; // dragging left = wider
+      const delta = e.clientX - startXRef.current; // dragging right = wider
       const next = Math.min(
         AI_PANEL_MAX,
         Math.max(AI_PANEL_MIN, startWidthRef.current + delta)
@@ -817,12 +817,12 @@ function ResizableAiPanel({ children }: { children: React.ReactNode }) {
       className="fixed inset-0 z-50 flex h-[100dvh] w-screen overflow-hidden border border-[#e5e5e5] bg-white md:relative md:z-auto md:h-full md:w-[var(--ai-panel-width)] md:shrink-0 md:rounded-xl"
       style={{ "--ai-panel-width": `${width}px`, boxShadow: "0 1px 1px rgba(0,0,0,0.05)" } as React.CSSProperties}
     >
-      {/* Drag handle on the left edge */}
+      {/* Drag handle on the right edge */}
       <div
         onMouseDown={onMouseDown}
-        className="group absolute left-0 top-0 z-10 hidden h-full w-1.5 cursor-col-resize items-center justify-center hover:bg-[#02878d]/10 md:flex"
+        className="group absolute right-0 top-0 z-10 hidden h-full w-1.5 cursor-col-resize items-center justify-center hover:bg-[#02878d]/10 md:flex"
         title="Drag to resize"
-        style={{ marginLeft: -3 }}
+        style={{ marginRight: -3 }}
       >
         <div className="h-12 w-1 rounded-full bg-transparent transition-colors group-hover:bg-[#02878d]" />
       </div>
