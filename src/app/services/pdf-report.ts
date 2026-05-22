@@ -141,19 +141,22 @@ function drawMetricCards(doc: PdfDoc, cards: MetricCard[] | undefined, x: number
 }
 
 function drawBullets(doc: PdfDoc, bullets: string[] | undefined, x: number, y: number, w: number, maxItems = 3) {
-  const items = shortList(bullets, maxItems, 104);
+  const items = shortList(bullets, maxItems, 120);
   if (items.length === 0) return y;
   let cursorY = y;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
 
+  const fontSizeMm = 9 * 0.353;
+  const lineSpacing = fontSizeMm * 1.24; // ~3.94mm
+
   for (const item of items) {
     setFill(doc, COLORS.teal);
     doc.circle(x + 2, cursorY - 1.5, 1.1, "F");
     setText(doc, COLORS.muted);
-    const lines = (doc.splitTextToSize(item, w - 10) as string[]).slice(0, 2);
+    const lines = (doc.splitTextToSize(item, w - 10) as string[]).slice(0, 3);
     doc.text(lines, x + 8, cursorY, { lineHeightFactor: 1.24 });
-    cursorY += Math.max(7, lines.length * 4.7 + 2);
+    cursorY += (lines.length - 1) * lineSpacing + 6.5;
   }
 
   return cursorY + 2;
@@ -409,49 +412,53 @@ function addSlide(doc: PdfDoc, slide: ReportDeckSlide, pageNumber: number) {
     doc.text("Evidence-led overview", 236, 121, { align: "center" });
   } else if (slide.type === "metric_snapshot") {
     const afterCards = drawMetricCards(doc, slide.metricCards, CONTENT_X, y, CONTENT_W, 3);
-    drawChips(doc, slide.chips, CONTENT_X, afterCards + 8, CONTENT_W);
-    drawBullets(doc, slide.bullets, CONTENT_X, 165, CONTENT_W, 2);
+    const afterChips = drawChips(doc, slide.chips, CONTENT_X, afterCards + 4, CONTENT_W);
+    drawBullets(doc, slide.bullets, CONTENT_X, afterChips, CONTENT_W, 2);
   } else if (slide.type === "risk_matrix") {
     drawRiskMatrix(doc, slide.matrixItems, CONTENT_X, y, 170, 100);
     drawBullets(doc, slide.bullets, 205, y + 9, 68, 3);
   } else if (slide.type === "visual_evidence" && slide.image) {
-    drawImageBox(doc, slide.image, CONTENT_X, y, 170, 104);
+    drawImageBox(doc, slide.image, CONTENT_X, y, 170, 88);
     drawBullets(doc, slide.bullets, 205, y + 9, 68, 3);
   } else if (slide.type === "comparison" && slide.images?.length) {
     const left = slide.images[0];
     const right = slide.images[1] ?? slide.images[0];
-    drawImageBox(doc, left, CONTENT_X, y, 118, 96);
-    drawImageBox(doc, right, CONTENT_X + 132, y, 118, 96);
-    drawBullets(doc, slide.bullets, CONTENT_X, y + 119, CONTENT_W, 2);
+    drawImageBox(doc, left, CONTENT_X, y, 118, 80);
+    drawImageBox(doc, right, CONTENT_X + 132, y, 118, 80);
+    drawBullets(doc, slide.bullets, CONTENT_X, y + 102, CONTENT_W, 2);
   } else if (slide.type === "flowchart" && slide.flowchart) {
     drawFlowChart(doc, slide.flowchart, CONTENT_X, y, CONTENT_W, 113);
   } else if (slide.type === "recommendation") {
     const cards = (slide.bullets ?? []).slice(0, 5);
     cards.forEach((item, index) => {
-      const cardY = y + index * 23;
+      const cardY = y + index * 24;
       const tone = index === 0 ? toneColors("red") : index === 1 ? toneColors("amber") : toneColors("teal");
       setFill(doc, tone.fill);
       setDraw(doc, tone.line);
-      doc.roundedRect(CONTENT_X, cardY, CONTENT_W, 17, 3, 3, "FD");
+      doc.roundedRect(CONTENT_X, cardY, CONTENT_W, 20, 3, 3, "FD");
       setText(doc, tone.text);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
-      doc.text(String(index + 1).padStart(2, "0"), CONTENT_X + 7, cardY + 10.5);
+      doc.text(String(index + 1).padStart(2, "0"), CONTENT_X + 7, cardY + 11.5);
       setText(doc, COLORS.text);
       doc.setFontSize(9.5);
-      doc.text(truncateText(item, 118), CONTENT_X + 20, cardY + 10.5, { maxWidth: CONTENT_W - 26 });
+      doc.text(truncateText(item, 118), CONTENT_X + 20, cardY + 11.5, { maxWidth: CONTENT_W - 26 });
     });
   } else {
+    let currentY = y;
+    if (slide.metricCards && slide.metricCards.length > 0) {
+      currentY = drawMetricCards(doc, slide.metricCards, CONTENT_X, y, CONTENT_W, 3) + 4;
+    }
     const bullets = slide.bullets ?? [];
     bullets.slice(0, 6).forEach((item, index) => {
       const row = Math.floor(index / 2);
       const col = index % 2;
       const cardW = (CONTENT_W - 9) / 2;
       const cardX = CONTENT_X + col * (cardW + 9);
-      const cardY = y + row * 33;
+      const cardY = currentY + row * 30;
       setFill(doc, COLORS.white);
       setDraw(doc, COLORS.line);
-      doc.roundedRect(cardX, cardY, cardW, 25, 3, 3, "FD");
+      doc.roundedRect(cardX, cardY, cardW, 27, 3, 3, "FD");
       setText(doc, COLORS.muted);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7.6);
@@ -459,7 +466,6 @@ function addSlide(doc: PdfDoc, slide: ReportDeckSlide, pageNumber: number) {
         lineHeightFactor: 1.16,
       });
     });
-    if (slide.metricCards) drawMetricCards(doc, slide.metricCards, CONTENT_X, y, CONTENT_W, 3);
   }
 
   drawSourceRefs(doc, slide.sourceRefs, CONTENT_X, 194);
