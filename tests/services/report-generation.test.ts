@@ -74,7 +74,7 @@ describe("generateVisualDeckReport", () => {
     const promise = generateVisualDeckReport({
       features: [feature],
       types: undefined,
-      trainingEntries: [],
+      trainingData: { featureKnowledge: [], userKnowledge: [], responseStyle: [], documentTemplate: [] },
       chatHistory: [],
       aiModel: "gemini-3.1-flash-lite",
       fileName: "feature-tracker-report.pdf",
@@ -99,7 +99,7 @@ describe("generateVisualDeckReport", () => {
       generateVisualDeckReport({
         features: [feature],
         types: undefined,
-        trainingEntries: [],
+        trainingData: { featureKnowledge: [], userKnowledge: [], responseStyle: [], documentTemplate: [] },
         chatHistory: [],
         aiModel: "gemini-3.1-flash-lite",
         fileName: "Feature Tracker Report.pdf",
@@ -114,5 +114,35 @@ describe("generateVisualDeckReport", () => {
       storagePath: "",
       contentType: "application/pdf",
     });
+  });
+
+  it("reports progress updates through the onProgress callback", async () => {
+    mocks.streamGemini.mockImplementation(async function* () {
+      yield '{"slides":';
+      yield ' []}';
+    });
+
+    const progressValues: number[] = [];
+    const onProgress = (pct: number) => {
+      progressValues.push(pct);
+    };
+
+    await generateVisualDeckReport({
+      features: [feature],
+      types: undefined,
+      trainingData: { featureKnowledge: [], userKnowledge: [], responseStyle: [], documentTemplate: [] },
+      chatHistory: [],
+      aiModel: "gemini-3.1-flash-lite",
+      fileName: "Feature Tracker Report.pdf",
+      userId: "test-user",
+      sessionId: "chat",
+      messageId: "a-report",
+      onProgress,
+    });
+
+    // Verify progress values are recorded (starts at 2, yields AI stream progress, finishes stages, and ends with 100)
+    expect(progressValues.length).toBeGreaterThan(0);
+    expect(progressValues[0]).toBe(2);
+    expect(progressValues[progressValues.length - 1]).toBe(100);
   });
 });

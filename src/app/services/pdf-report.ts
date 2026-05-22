@@ -465,14 +465,23 @@ function addSlide(doc: PdfDoc, slide: ReportDeckSlide, pageNumber: number) {
   drawSourceRefs(doc, slide.sourceRefs, CONTENT_X, 194);
 }
 
-export async function createReportPdf(aiOutput: string, features: Feature[]): Promise<Blob> {
+export async function createReportPdf(
+  aiOutput: string,
+  features: Feature[],
+  onProgress?: (progress: number) => void
+): Promise<Blob> {
   const { jsPDF } = await import("jspdf");
   const deck = buildReportDeckSpec(aiOutput, features);
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
+  const total = deck.slides.length;
   deck.slides.forEach((slide, index) => {
     if (index > 0) doc.addPage();
     addSlide(doc, slide, index + 1);
+    if (onProgress && total > 0) {
+      const slidePct = 90 + Math.round(((index + 1) / total) * 8);
+      onProgress(slidePct);
+    }
   });
 
   return doc.output("blob");

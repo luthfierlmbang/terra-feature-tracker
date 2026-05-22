@@ -4,6 +4,7 @@ import type { ReportAttachmentMetadata } from "../../../services/report-types";
 export type ReportAttachment = Partial<ReportAttachmentMetadata> &
   Pick<ReportAttachmentMetadata, "id" | "fileName"> & {
     status: "loading" | "ready";
+    progress?: number;
   };
 
 export function formatBytes(bytes: number | undefined) {
@@ -22,6 +23,7 @@ export function ReportAttachmentCard({
   onDelete: () => void;
 }) {
   const isLoading = attachment.status === "loading";
+  const progress = attachment.progress ?? 0;
 
   return (
     <div className="mt-3 overflow-hidden rounded-lg border border-[#d7eeee] bg-[#f0fafb]">
@@ -37,9 +39,26 @@ export function ReportAttachmentCard({
           <p className="truncate text-[13px] font-semibold leading-5 text-[#171717]">
             {attachment.fileName}
           </p>
-          <p className="text-[12px] leading-5 text-[#525252]">
-            {isLoading ? "Menyusun PDF report..." : `PDF siap - ${formatBytes(attachment.size)}`}
-          </p>
+          <div className="flex flex-col gap-1.5 mt-0.5">
+            <p className="text-[12px] leading-5 text-[#525252]">
+              {isLoading ? (
+                <span className="flex items-center justify-between">
+                  <span>Menyusun PDF report...</span>
+                  <span className="font-semibold text-[#027479]">{progress}%</span>
+                </span>
+              ) : (
+                `PDF siap - ${formatBytes(attachment.size)}`
+              )}
+            </p>
+            {isLoading && (
+              <div className="w-full h-1.5 bg-[#e2f2f3] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#02878d] rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -432,6 +432,7 @@ export function AiAgentPanel({
         id: assistantId,
         fileName,
         status: "loading",
+        progress: 0,
       },
     }));
 
@@ -446,6 +447,18 @@ export function AiAgentPanel({
         userId,
         sessionId,
         messageId: assistantId,
+        onProgress: (pct) => {
+          setReportAttachments((prev) => {
+            if (!prev[assistantId]) return prev;
+            return {
+              ...prev,
+              [assistantId]: {
+                ...prev[assistantId],
+                progress: pct,
+              },
+            };
+          });
+        },
       });
 
       setReportAttachments((prev) => ({

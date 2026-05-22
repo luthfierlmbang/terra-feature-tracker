@@ -69,12 +69,14 @@ async function collectReportAiOutput({
   trainingData,
   chatHistory,
   aiModel,
+  onProgress,
 }: {
   features: Feature[];
   types: TypesState | undefined;
   trainingData: TrainingDataForReport;
   chatHistory: ChatMessage[];
   aiModel: AiModel;
+  onProgress?: (progress: number) => void;
 }) {
   const controller = new AbortController();
   let didTimeout = false;
@@ -100,8 +102,14 @@ async function collectReportAiOutput({
     );
     let aiOutput = "";
 
+    if (onProgress) onProgress(5);
+
     for await (const chunk of stream) {
       aiOutput += chunk;
+      if (onProgress) {
+        const pct = Math.min(85, 5 + Math.round((aiOutput.length / 3500) * 80));
+        onProgress(pct);
+      }
     }
 
     return aiOutput;
@@ -127,6 +135,7 @@ export async function generateVisualDeckReport({
   userId,
   sessionId,
   messageId,
+  onProgress,
 }: {
   features: Feature[];
   types: TypesState | undefined;
@@ -137,27 +146,40 @@ export async function generateVisualDeckReport({
   userId: string;
   sessionId: string;
   messageId: string;
+  onProgress?: (progress: number) => void;
 }): Promise<ReportAttachmentMetadata> {
+  if (onProgress) onProgress(2);
+
   const aiOutput = await collectReportAiOutput({
     features,
     types,
     trainingData,
     chatHistory,
-    aiModel
+    aiModel,
+    onProgress,
   });
 
-  const pdfBlob = await createReportPdf(aiOutput, features);
+  if (onProgress) onProgress(88);
+
+  const pdfBlob = onProgress
+    ? await createReportPdf(aiOutput, features, onProgress)
+    : await createReportPdf(aiOutput, features);
+  
+  if (onProgress) onProgress(98);
+
   try {
-    return await uploadReportArtifact({
+    const result = await uploadReportArtifact({
       blob: pdfBlob,
       fileName,
       userId,
       sessionId,
       messageId,
     });
+    if (onProgress) onProgress(100);
+    return result;
   } catch (error) {
     console.warn("PDF artifact upload failed. Falling back to local blob attachment.", error);
-    return {
+    const fallback = {
       id: messageId,
       fileName: fileName.replace(/[^a-z0-9._-]+/gi, "-").toLowerCase(),
       url: URL.createObjectURL(pdfBlob),
@@ -166,5 +188,7 @@ export async function generateVisualDeckReport({
       contentType: "application/pdf",
       createdAt: new Date().toISOString(),
     };
+    if (onProgress) onProgress(100);
+    return fallback;
   }
 }
