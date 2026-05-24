@@ -58,7 +58,7 @@ function estimateDataUrlBytes(dataUrl: string | undefined) {
   return Math.max(0, Math.floor((payload.length * 3) / 4) - padding);
 }
 
-function isPdfSafeDataImage(value: string | undefined) {
+export function isPdfSafeDataImage(value: string | undefined) {
   return isDataImage(value) && estimateDataUrlBytes(value) <= MAX_PDF_IMAGE_BYTES;
 }
 
@@ -268,10 +268,34 @@ function normalizeFlowchart(value: unknown): FlowChartDefinition | undefined {
     .filter((node): node is FlowChartNode => Boolean(node?.label));
 
   if (nodes.length === 0) return undefined;
+
+  // Build a set of valid node IDs for edge validation
+  const nodeIdSet = new Set(nodes.map((node) => node.id));
+
+  // Read raw.edges when present; fall back to sequential only when missing/empty
+  let edges: { from: string; to: string }[];
+  if (Array.isArray(raw.edges) && raw.edges.length > 0) {
+    const validatedEdges = raw.edges
+      .filter(
+        (item): item is { from: string; to: string } =>
+          item !== null &&
+          typeof item === "object" &&
+          typeof (item as Record<string, unknown>).from === "string" &&
+          typeof (item as Record<string, unknown>).to === "string"
+      )
+      .filter((edge) => nodeIdSet.has(edge.from) && nodeIdSet.has(edge.to));
+    edges =
+      validatedEdges.length > 0
+        ? validatedEdges
+        : nodes.slice(0, -1).map((node, index) => ({ from: node.id, to: nodes[index + 1].id }));
+  } else {
+    edges = nodes.slice(0, -1).map((node, index) => ({ from: node.id, to: nodes[index + 1].id }));
+  }
+
   return {
     title: raw.title ? truncateText(raw.title, 70) : undefined,
     nodes,
-    edges: nodes.slice(0, -1).map((node, index) => ({ from: node.id, to: nodes[index + 1].id })),
+    edges,
   };
 }
 
@@ -496,10 +520,16 @@ function chunkFlowDefinition(definition: FlowChartDefinition, size = 8): FlowCha
   const chunks: FlowChartDefinition[] = [];
   for (let index = 0; index < definition.nodes.length; index += size) {
     const nodes = definition.nodes.slice(index, index + size);
+    // Build a set of node IDs in this chunk
+    const chunkNodeIds = new Set(nodes.map((node) => node.id));
+    // Filter original edges to those where both from and to are in this chunk
+    const filteredEdges = (definition.edges ?? []).filter(
+      (edge) => chunkNodeIds.has(edge.from) && chunkNodeIds.has(edge.to)
+    );
     chunks.push({
       title: `${definition.title || "Flow chart"} (${chunks.length + 1})`,
       nodes,
-      edges: nodes.slice(0, -1).map((node, nodeIndex) => ({ from: node.id, to: nodes[nodeIndex + 1].id })),
+      edges: filteredEdges,
     });
   }
   return chunks;
