@@ -58,7 +58,7 @@ function estimateDataUrlBytes(dataUrl: string | undefined) {
   return Math.max(0, Math.floor((payload.length * 3) / 4) - padding);
 }
 
-function isPdfSafeDataImage(value: string | undefined) {
+export function isPdfSafeDataImage(value: string | undefined) {
   return isDataImage(value) && estimateDataUrlBytes(value) <= MAX_PDF_IMAGE_BYTES;
 }
 
